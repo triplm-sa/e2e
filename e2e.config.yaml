@@ -1,0 +1,61 @@
+# =============================================================================
+# Config E2E (template) — mọi giá trị theo project nằm trong e2e/.env, config đọc qua ${VAR}.
+#
+# CHUYỂN SANG PROJECT KHÁC → chỉ sửa e2e/.env (KHÔNG sửa file này):
+#   JIRA_PROJECT_KEY, DIFF_REPOS, BASE_BRANCH,
+#   STORE, APP_HANDLE, APP_DOMAIN, API_BASE_URL, API_ENV_FILE
+# Secret (SHOPIFY_API_KEY/SECRET) resolve: process.env → e2e/.env → API_ENV_FILE.
+# Sau khi sửa .env: `pnpm e2e:doctor` (kiểm) → `pnpm e2e:login cms`.
+#
+# Đăng nhập (1 lần, phiên lưu vào profile trên đĩa):
+#   pnpm e2e:login cms         → đăng nhập ADMIN Shopify (email + mật khẩu + 2FA)
+#   pnpm e2e:login storefront  → đăng nhập CUSTOMER (dùng chung profile với proxy)
+# =============================================================================
+
+requirements:
+  tracker: jira
+  jiraProjectKey: ${JIRA_PROJECT_KEY}
+  docs: []
+  diffRepos: [${DIFF_REPOS}]
+  baseBranch: ${BASE_BRANCH:-master}
+
+targets:
+  # Backend Admin API — verify session token trực tiếp (không tiền tố "Bearer") → headerPrefix rỗng.
+  api:
+    kind: api
+    baseUrl: ${API_BASE_URL}
+    auth:
+      type: shopify-session-jwt
+      envFile: ${API_ENV_FILE:-}          # nguồn secret cuối; bỏ trống nếu để secret trong e2e/.env / process.env
+      apiKeyVar: SHOPIFY_API_KEY
+      apiSecretVar: SHOPIFY_API_SECRET_KEY
+      shopDomain: ${STORE}.myshopify.com
+      headerPrefix: ""
+
+  # App nhúng trong Shopify Admin → phiên ADMIN. baseUrl là DEEP LINK Admin → app (KHÔNG phải domain app).
+  cms:
+    kind: browser
+    baseUrl: https://admin.shopify.com/store/${STORE}/apps/${APP_HANDLE}
+    appIframeSrc: ${APP_DOMAIN}            # host iframe chứa UI app → spec dùng page.frameLocator(`iframe[src*="..."]`)
+    auth:
+      type: chrome-profile
+      profileDir: .auth/cms-profile
+      loginUrl: https://admin.shopify.com/store/${STORE}
+
+  # Mặt store cho khách → phiên CUSTOMER có tag.
+  storefront:
+    kind: browser
+    baseUrl: https://${STORE}.myshopify.com
+    auth:
+      type: chrome-profile
+      profileDir: .auth/customer-profile
+      loginUrl: https://${STORE}.myshopify.com/account/login
+
+  # Proxy = mặt store với prefix /apps/b2bridge (Shopify tự ký signature khi forward). Dùng chung phiên CUSTOMER.
+  proxy:
+    kind: browser
+    baseUrl: https://${STORE}.myshopify.com
+    auth:
+      type: chrome-profile
+      profileDir: .auth/customer-profile
+      loginUrl: https://${STORE}.myshopify.com/account/login

@@ -1,0 +1,37 @@
+# ---------- dependencies ----------
+node_modules/
+
+# ---------- secrets & login sessions — never commit ----------
+.env
+.env.*
+!.env.example
+.auth/
+
+# ---------- run output ----------
+/reports/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+build/
+dist/
+*.tsbuildinfo
+
+# ---------- task artifacts ----------
+# cases/<slug>/ holds generated plans plus REAL store data (emails, ids, internal
+# URLs) and internal ticket content. Ignored by default so nothing internal leaks
+# into a public repository.
+# If your repository is private and you want the test suite versioned with the
+# project, delete the two lines below.
+/cases/*
+!/cases/.gitkeep
+
+# ---------- local tooling ----------
+.claude/settings.local.json
+
+# ---------- editor / OS ----------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
