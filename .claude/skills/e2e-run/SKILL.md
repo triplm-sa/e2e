@@ -29,4 +29,8 @@ Shared conventions and prerequisites: `../_shared/conventions.md`.
    - Intermittent results → hand over to `/e2e flaky`.
    - Steps marked **SKIPPED** were never executed because a `phase: setup` step failed before them. Report them as not-yet-verified and fix the setup; never present them as feature defects. Only `test` steps count towards the pass/fail total.
 
-5. Summarise for the tester: pass and fail counts, notable console errors, and the suspected cause of each failure. To export CSV or re-consolidate, use `/e2e report`.
+5. **Write the bug section of the report.** The engine leaves section 1 with a template: one block per bug, covering both newly appeared bugs and previously reported ones re-verified in this run. Each needs the observed behaviour, the expected behaviour with its AC, **numbered steps the tester can reproduce by hand**, the evidence in `artifacts/`, and the suspected `file:line`.
+
+   Keep the report to what the tester acts on. **Do not add sections narrating your own process** — what you automated, how much data you created, incidents while re-running, spec fixes you made along the way. Coverage belongs in `plan.md`, data in `data.md`, chains in `project-notes.md`. If an incident changes what a result means, state it in one line inside the affected entry.
+
+6. Summarise in chat: bug count (new versus re-verified), pass / fail / not-verified totals, and which items need a developer versus a spec fix. To re-consolidate later, use `/e2e report`.

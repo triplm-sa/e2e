@@ -199,7 +199,7 @@ cases/<slug>/                # ĐẦU VÀO (vd BR-53/)
   task.md                    # tiến độ full-flow                        (e2e-full)
 
 reports/<slug>/              # ĐẦU RA (gitignore, ghi đè mỗi lần chạy)
-  report.md                  # bảng pass/fail theo id case + phân tích
+  report.md                  # 1. Bug · 2. Kết quả theo case · 3. Case chưa kiểm được · 4. Console
   report.csv                 # engine tự sinh mỗi lần chạy — Google Sheets / Jira / TestRail
   report.json                # dữ liệu máy đọc
   html/index.html            # báo cáo Playwright, ảnh nhúng sẵn
@@ -209,6 +209,19 @@ reports/<slug>/              # ĐẦU RA (gitignore, ghi đè mỗi lần chạy
 Xem kết quả browser: mở `reports/<slug>/html/index.html`. Mở trace: `pnpm exec playwright show-trace <file.zip>`.
 
 Ba đầu ra cuối cùng của một task: **kết luận chất lượng** (`report.md`), **bằng chứng** (ảnh + trace), và **tài sản tái dùng** — bộ test regression chạy lại bằng `pnpm e2e:all`.
+
+### `report.md` viết cho tester, không phải nhật ký công việc
+
+Engine sinh sẵn khung 4 mục; AI chỉ điền **mục 1 — Bug**:
+
+| Mục | Nội dung | Ai viết |
+|---|---|---|
+| 1. Bug | Mỗi bug một khối: hiện tượng · kỳ vọng (theo AC) · **các bước tái hiện thủ công** · bằng chứng · nghi ngờ `file:line` · trạng thái (🔴 mới / 🟢 đã fix, verify lại / 🟠 còn lặp lại) | AI |
+| 2. Kết quả theo case | Bảng pass / fail / skip kèm phase và risk | engine |
+| 3. Case chưa kiểm được | Case bị skip + lý do | engine |
+| 4. Console đáng chú ý | Chỉ message **không** gắn nhãn `NOISE` | engine |
+
+**Không đưa vào report**: những gì AI đã tự động hoá thêm, số bản ghi đã tạo qua API, sự cố khi chạy lại, lỗi spec tự sửa dọc đường, case nào chưa tự động hoá được. Đó là nhật ký công việc, không phải kết quả kiểm thử — độ bao phủ thuộc `plan.md`, dữ liệu thuộc `data.md`, chuỗi endpoint thuộc `project-notes.md`.
 
 ---
 

@@ -23,6 +23,25 @@ export function renderReport(feature: string, results: StepResult[], generatedAt
     );
   }
 
+  // Bugs come first: that is what the tester acts on. The runner cannot judge what is a defect,
+  // so it leaves a slot with the required shape rather than a vague "analysis" heading.
+  lines.push(
+    "## 1. Bug",
+    "",
+    "> Claude điền mục này. Mỗi bug một khối, theo đúng mẫu dưới; không có bug thì ghi “Không phát hiện bug”.",
+    "> Trạng thái: 🔴 MỚI · 🟢 ĐÃ FIX (verify lại lần này) · 🟠 CÒN LẶP LẠI (fix chưa dứt điểm).",
+    ">",
+    "> ### 🔴 BUG-01 · \\<tiêu đề ngắn\\> — case TD-xx · rủi ro Cao",
+    "> - **Hiện tượng:** quan sát được gì trên màn hình / response",
+    "> - **Kỳ vọng (AC-x):** đúng ra phải thế nào",
+    "> - **Tái hiện:** các bước đánh số để tester tự làm lại bằng tay",
+    "> - **Bằng chứng:** ảnh trong `artifacts/`, trace nếu có",
+    "> - **Nghi ngờ nguyên nhân:** `file:line`",
+    "",
+    "## 2. Kết quả theo case",
+    "",
+  );
+
   lines.push("| Case | Phase | Risk | Target | Scenario | Result | Detail |", "|---|---|---|---|---|---|---|");
   for (const r of results) {
     const mark = r.skipped ? "⏭️ SKIP" : r.passed ? "✅ PASS" : "❌ FAIL";
@@ -31,15 +50,24 @@ export function renderReport(feature: string, results: StepResult[], generatedAt
     );
   }
 
-  const withErrors = results.filter((r) => r.consoleErrors?.length);
-  if (withErrors.length) {
-    lines.push("", "## Console errors", "");
-    for (const r of withErrors) {
-      lines.push(`### Step ${r.index} (${r.target})`, "```", ...(r.consoleErrors ?? []), "```", "");
+  const notVerified = results.filter((r) => r.skipped);
+  if (notVerified.length) {
+    lines.push("", "## 3. Case chưa kiểm được", "");
+    for (const r of notVerified) {
+      lines.push(`- **${r.case ?? r.index}** — ${escape(r.action)}: ${escape(r.detail)}`);
     }
   }
 
-  lines.push("", "## Analysis", "", "> (Claude fills in root-cause analysis and points to file:line here.)", "");
+  // Only messages the fixture did not tag as NOISE say anything about the application.
+  const withErrors = results.filter((r) => r.consoleErrors?.some((e) => !e.includes("NOISE")));
+  if (withErrors.length) {
+    lines.push("", "## 4. Console đáng chú ý", "");
+    for (const r of withErrors) {
+      const real = (r.consoleErrors ?? []).filter((e) => !e.includes("NOISE"));
+      lines.push(`### ${r.case ?? `Step ${r.index}`} (${r.target})`, "```", ...real, "```", "");
+    }
+  }
+
   return lines.join("\n");
 }
 
