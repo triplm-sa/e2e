@@ -1,8 +1,15 @@
 # Project notes
 
-> **The only file tied to one particular app.** The rest of `_shared/` holds rules true for any Shopify app.
-> When adopting this harness for a different app, replace the contents below and keep the headings —
-> the skills read this file for concrete facts they must not guess.
+> **A living record of what has been learned about one particular app.** The rest of `_shared/`
+> holds rules true for any Shopify app; only this file is app-specific.
+>
+> **Starting empty is normal and expected.** Nothing here has to be written up front. Every section
+> may be blank: the skills then discover what they need from the code and **append what they find**,
+> so the file grows richer with each task and later runs start from a better map.
+>
+> **When adopting the harness for a different app, empty the sections but keep the headings.**
+> Leaving another app's endpoints in place is worse than leaving them blank — the skills would
+> trust them and chase routes that do not exist.
 
 ## Targets
 

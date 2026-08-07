@@ -77,31 +77,35 @@ Skill và slash command đặt ngay trong thư mục này (`.claude/`, dạng *d
 cd e2e
 pnpm install                  # 1. cài dependencies
 cp .env.example .env          # 2. điền biến cấu hình cho app mới
-#                               3. viết lại .claude/skills/_shared/project-notes.md  ← BẮT BUỘC
+#                               3. xoá nội dung project-notes.md của app cũ (giữ tiêu đề)
 pnpm e2e:doctor               # 4. kiểm tra môi trường, báo pass/fail từng mục
 pnpm e2e:login cms            # 5. lưu phiên đăng nhập (nếu test target browser)
 ```
 
 Không cần sửa mã nguồn hay `e2e.config.yaml` — giá trị theo app nằm trong `.env`, tri thức về app nằm trong `project-notes.md`.
 
-### ⚠️ Bước 3 — `project-notes.md` là file bắt buộc phải viết lại
-
-Bộ khung tách tri thức làm hai tầng:
+### Phân tầng tri thức
 
 | Tầng | Ở đâu | Khi đổi app |
 |---|---|---|
-| **Nền tảng Shopify** — Admin deep link, app nhúng iframe, console noise của storefront, 2FA | `_shared/conventions.md`, `_shared/references/` | **Giữ nguyên** |
-| **Phương pháp** — thang tự động hoá, quality gate, phân loại lỗi, checklist trường | `_shared/references/` | **Giữ nguyên** |
-| **Tri thức về app cụ thể** — target nào, chuỗi endpoint đạt trạng thái, setting đổi được ở đâu, cách kiểm môi trường | **`_shared/project-notes.md`** | **Viết lại** |
+| **Nền tảng Shopify** — Admin deep link, app nhúng iframe, console noise của storefront, 2FA | `_shared/conventions.md` | giữ nguyên |
+| **Phương pháp** — thang tự động hoá, quality gate, phân loại lỗi, checklist trường | `_shared/references/` | giữ nguyên |
+| **Tri thức về app cụ thể** — target nào, chuỗi endpoint đạt trạng thái, setting đổi được ở đâu, health check | `_shared/project-notes.md` | **xoá nội dung cũ** |
 
-Nếu bỏ qua bước này, AI sẽ **không biết cách tạo dữ liệu cho app mới** và quay lại thói quen đánh dấu case là "cần chuẩn bị thủ công" — đúng thứ mà thang tự động hoá sinh ra để ngăn.
+### `project-notes.md` — tài liệu sống, tự đầy dần
 
-`project-notes.md` gồm 4 mục, giữ nguyên tiêu đề và thay nội dung:
+**Không phải viết sẵn trước khi chạy.** File có thể để trống hoàn toàn: khi thiếu thông tin, skill tự đi tìm trong mã nguồn rồi **ghi bổ sung những gì phát hiện được**. Chạy càng nhiều task, file càng giàu, và các task sau khởi đầu từ bản đồ tốt hơn.
 
-- **Targets** — target nào tồn tại, target nào nhúng trong Admin.
-- **Known state chains** — chuỗi endpoint để đạt từng trạng thái (vd `create-…` → `complete-…`). Skill `analyze` **đọc mục này trước và ghi bổ sung chuỗi mới phát hiện**, nên nó giàu dần theo từng task.
-- **Switchable settings** — setting nào đổi được, bằng endpoint nào, kèm cạm bẫy (vd endpoint là upsert toàn phần chứ không phải patch).
-- **Environment checks** — URL health check của app.
+Bốn mục, giữ nguyên tiêu đề dù chưa có nội dung:
+
+| Mục | Nội dung | Ai bổ sung |
+|---|---|---|
+| **Targets** | Target nào tồn tại, target nào nhúng trong Admin | người (hoặc suy từ config) |
+| **Known state chains** | Chuỗi endpoint đạt từng trạng thái (`create-…` → `complete-…`) | `analyze`, `data` tự ghi |
+| **Switchable settings** | Setting đổi được bằng endpoint nào, kèm cạm bẫy | `analyze` tự ghi |
+| **Environment checks** | URL health check | người |
+
+> ⚠️ Khi đổi sang app khác, **xoá nội dung cũ đi**. Để nguyên endpoint của app trước còn tệ hơn để trống — skill sẽ tin và đi tìm route không tồn tại.
 
 **Secret** (`SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET_KEY`) resolve theo ba nguồn ưu tiên, chỉ cần một trong ba:
 

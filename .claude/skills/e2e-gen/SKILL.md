@@ -48,7 +48,7 @@ Read the `feature/<KEY>` branch diff for every repository in `requirements.diffR
 - **Follow the chain to the end.** Finding the first endpoint is not the answer. If `create-…` yields only a draft and a `complete-…` endpoint exists, the chain continues; stopping at the draft and skipping the case is a defect.
 - Only when every rung fails may a case be manual, and the cell must carry the **per-rung justification** required by the ladder, naming the routers inspected.
 
-Use the state-reachability table from `analysis.md` (step 4 of `e2e-analyze`) as input, together with the chains already recorded in `../_shared/project-notes.md`. If neither exists, build the table now by listing the mutating endpoints — never fall back to "needs preparation" without that list.
+Use the state-reachability table from `analysis.md` (step 4 of `e2e-analyze`) as input, together with any chains recorded in `../_shared/project-notes.md`. **Both may be empty** — then build the table now by listing the mutating endpoints yourself, and append what you learn to `project-notes.md`. An empty knowledge file is never a reason to mark a case manual.
 
 **Gate before step 6:** for every case not marked automatable, confirm the cell contains a per-rung verdict with named endpoints or routers. A bare "needs a company with orders", "needs the account type changed" or "needs real data" is not a valid entry — resolve it into setup steps or write the full justification. Do not present a plan that still contains one.
 

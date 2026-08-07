@@ -23,7 +23,7 @@ Shared conventions: `../_shared/conventions.md`.
 
 4. **Map how to reach every required state — do this before anyone judges what is automatable.** List what the tests need: entities (orders, members, accounts), **settings or modes to switch** (account type, feature toggles, payment terms) and **identities** to act as.
 
-   Start from `../_shared/project-notes.md`, which records the chains already discovered for this app. For anything not listed, find the path yourself: grep the routers and controllers for mutating endpoints (`POST`, `PUT`, `PATCH`, `DELETE`), read any OpenAPI or GraphQL schema, and look at the endpoint the app's own UI calls. **Follow each chain to the end** — a create endpoint that only yields a draft is not the answer if a complete/approve/activate endpoint exists.
+   Start from `../_shared/project-notes.md`, which records what earlier tasks discovered about this app. **It is often empty — that is normal, not an error.** For anything it does not cover, find the path yourself: grep the routers and controllers for mutating endpoints (`POST`, `PUT`, `PATCH`, `DELETE`), read any OpenAPI or GraphQL schema, and look at the endpoint the app's own UI calls. **Follow each chain to the end** — a create endpoint that only yields a draft is not the answer if a complete/approve/activate endpoint exists.
 
    Record a table: required state → chain of endpoints → cleanup → rung on `../_shared/references/automation-ladder.md`. **Append newly discovered chains to `project-notes.md`** so the next task starts from a richer map. This table is what stops `e2e-gen` from writing off cases as "needs manual preparation" when the system could reach the state itself.
 
