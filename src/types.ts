@@ -63,10 +63,27 @@ export interface E2EConfig {
   requirements?: RequirementsConfig;
 }
 
+/**
+ * Role of a step within the run.
+ * - `setup`    — creates the precondition data the tests need. Runs first, in declared order.
+ *                A failing setup step aborts the remaining tests (they are reported as SKIPPED,
+ *                not FAILED, because they never got valid preconditions).
+ * - `test`     — the actual assertions. Only these count towards the pass/fail total. Default.
+ * - `teardown` — best-effort cleanup. Always runs, even after an abort, and never skips anything.
+ */
+export type StepPhase = "setup" | "test" | "teardown";
+
+/** Risk rating carried over from plan.md so reports and the CSV export can show it. */
+export type Risk = "High" | "Medium" | "Low";
+
 export interface ApiStep {
   target: string;
   /** Human-readable case id, matching <feature>.plan.md (e.g. "TD-10"). */
   case?: string;
+  /** Defaults to "test". */
+  phase?: StepPhase;
+  /** Risk rating from plan.md; surfaced in the report and CSV export. */
+  risk?: Risk;
   request: { method: string; path: string; headers?: Record<string, string>; body?: unknown };
   expect: { status?: number; bodyMatch?: Record<string, unknown> };
   action?: string;
@@ -83,6 +100,10 @@ export interface BrowserStep {
   target: string;
   /** Human-readable case id, matching <feature>.plan.md (e.g. "TD-01"). */
   case?: string;
+  /** Defaults to "test". */
+  phase?: StepPhase;
+  /** Risk rating from plan.md; surfaced in the report and CSV export. */
+  risk?: Risk;
   action: string;
   spec?: string;
 }
@@ -103,8 +124,13 @@ export interface StepResult {
   index: number;
   target: string;
   kind: "api" | "browser";
+  /** Defaults to "test" when the step did not declare a phase. */
+  phase?: StepPhase;
+  risk?: Risk;
   action: string;
   passed: boolean;
+  /** True when the step never ran because a setup step failed before it. */
+  skipped?: boolean;
   detail: string;
   consoleErrors?: string[];
   screenshot?: string;
@@ -112,4 +138,9 @@ export interface StepResult {
 
 export function isApiStep(s: Step): s is ApiStep {
   return (s as ApiStep).request !== undefined;
+}
+
+/** A step's phase, defaulting to "test". */
+export function phaseOf(s: Step | StepResult): StepPhase {
+  return (s as { phase?: StepPhase }).phase ?? "test";
 }

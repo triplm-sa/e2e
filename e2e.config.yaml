@@ -10,6 +10,13 @@
 # Đăng nhập (1 lần, phiên lưu vào profile trên đĩa):
 #   pnpm e2e:login cms         → đăng nhập ADMIN Shopify (email + mật khẩu + 2FA)
 #   pnpm e2e:login storefront  → đăng nhập CUSTOMER (dùng chung profile với proxy)
+#
+# Multi-account (persona buyer thứ 2, vd company admin/member khác — dùng chung phiên storefront/proxy):
+#   Có sẵn 1 slot, TÊN GENERIC (không gắn tên feature/project) — profile lấy qua .env,
+#   không cần sửa file này khi đổi persona: PERSONA2_PROFILE=.auth/persona2-profile (mặc định nếu bỏ trống).
+#   Login: `pnpm e2e:login storefront-2` (hoặc proxy-2).
+#   Ghi chú ý nghĩa persona nào ứng với slot nào ở cases/<slug>/data.md — KHÔNG ở file này.
+#   Cần thêm persona thứ 3+ → thêm khối target + biến .env tương tự (PERSONA3_PROFILE...) khi cần, không dựng sẵn.
 # =============================================================================
 
 requirements:
@@ -58,4 +65,21 @@ targets:
     auth:
       type: chrome-profile
       profileDir: .auth/customer-profile
+      loginUrl: https://${STORE}.myshopify.com/account/login
+
+  # ---- Slot persona buyer thứ 2/3 (generic, portable) — xem hướng dẫn ở đầu file ----
+  storefront-2:
+    kind: browser
+    baseUrl: https://${STORE}.myshopify.com
+    auth:
+      type: chrome-profile
+      profileDir: ${PERSONA2_PROFILE:-.auth/persona2-profile}
+      loginUrl: https://${STORE}.myshopify.com/account/login
+
+  proxy-2:
+    kind: browser
+    baseUrl: https://${STORE}.myshopify.com
+    auth:
+      type: chrome-profile
+      profileDir: ${PERSONA2_PROFILE:-.auth/persona2-profile}
       loginUrl: https://${STORE}.myshopify.com/account/login

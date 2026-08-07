@@ -33,11 +33,12 @@ Hệ thống tách thành các lớp, trong đó **AI chỉ tham gia lớp sinh 
 |---|---|---|
 | Nguồn vào | Jira (MCP Atlassian) · source code + git diff · UI thật (Claude in Chrome) | Cung cấp yêu cầu và ngữ cảnh triển khai |
 | **AI** | Claude Code + 7 skill trong `.claude/skills/` | Sinh kế hoạch, biên dịch test, phân tích lỗi |
+| Tri thức | `_shared/` — quy ước & phương pháp (giữ nguyên) + **`project-notes.md`** (theo từng app) | Cho AI biết *cách làm* và *app này hoạt động ra sao* |
 | Test & cấu hình | `plan.md`, `coverage.md`, `cases.yaml`, `*.spec.ts`, `e2e.config.yaml`, `.env` | Artifact tĩnh, versioned |
 | **Engine** | `src/` — auth · api-runner · browser-fixture · report | Thực thi test, **không chứa AI** |
 | Hệ thống đích | Target khai trong config | Môi trường thật |
 
-Nhờ tách lớp: cùng một bộ test cho ra cùng kết quả, chạy lại bao nhiêu lần cũng được mà không cần AI; đổi project chỉ thay lớp cấu hình, không sửa engine.
+Nhờ tách lớp: cùng một bộ test cho ra cùng kết quả, chạy lại bao nhiêu lần cũng được mà không cần AI; đổi app chỉ thay **`.env` + `project-notes.md`**, không sửa engine cũng không sửa phương pháp.
 
 ### Mã nguồn engine (`src/`)
 
@@ -50,7 +51,7 @@ Nhờ tách lớp: cùng một bộ test cho ra cùng kết quả, chạy lại 
 | `api-runner.ts` | Chạy API step, nội suy `${var}`, `capture` giá trị cho step sau |
 | `browser-fixture.ts` | Fixture Playwright: mở target theo config, bắt console error, chụp ảnh trang thật |
 | `run.ts` | Điều phối API step tuần tự, giữ biến chain, ghi report |
-| `report.ts` | Render `report.md` |
+| `report.ts` | Render `report.md` và `report.csv` (deterministic, không cần AI) |
 | `doctor.ts` | Preflight: Chrome, config, chữ ký token, phiên đăng nhập, tình trạng API |
 | `all.ts` | Chạy trọn doctor → API → browser cho một hoặc nhiều task |
 | `login.ts` | Lưu phiên đăng nhập (chrome-profile hoặc storage-state) |
@@ -75,12 +76,32 @@ Skill và slash command đặt ngay trong thư mục này (`.claude/`, dạng *d
 ```bash
 cd e2e
 pnpm install                  # 1. cài dependencies
-cp .env.example .env          # 2. điền biến cấu hình cho project mới
-pnpm e2e:doctor               # 3. kiểm tra môi trường, báo pass/fail từng mục
-pnpm e2e:login cms            # 4. lưu phiên đăng nhập (nếu test target browser)
+cp .env.example .env          # 2. điền biến cấu hình cho app mới
+#                               3. viết lại .claude/skills/_shared/project-notes.md  ← BẮT BUỘC
+pnpm e2e:doctor               # 4. kiểm tra môi trường, báo pass/fail từng mục
+pnpm e2e:login cms            # 5. lưu phiên đăng nhập (nếu test target browser)
 ```
 
-Không cần sửa mã nguồn hay `e2e.config.yaml` — mọi giá trị theo project nằm trong `.env`.
+Không cần sửa mã nguồn hay `e2e.config.yaml` — giá trị theo app nằm trong `.env`, tri thức về app nằm trong `project-notes.md`.
+
+### ⚠️ Bước 3 — `project-notes.md` là file bắt buộc phải viết lại
+
+Bộ khung tách tri thức làm hai tầng:
+
+| Tầng | Ở đâu | Khi đổi app |
+|---|---|---|
+| **Nền tảng Shopify** — Admin deep link, app nhúng iframe, console noise của storefront, 2FA | `_shared/conventions.md`, `_shared/references/` | **Giữ nguyên** |
+| **Phương pháp** — thang tự động hoá, quality gate, phân loại lỗi, checklist trường | `_shared/references/` | **Giữ nguyên** |
+| **Tri thức về app cụ thể** — target nào, chuỗi endpoint đạt trạng thái, setting đổi được ở đâu, cách kiểm môi trường | **`_shared/project-notes.md`** | **Viết lại** |
+
+Nếu bỏ qua bước này, AI sẽ **không biết cách tạo dữ liệu cho app mới** và quay lại thói quen đánh dấu case là "cần chuẩn bị thủ công" — đúng thứ mà thang tự động hoá sinh ra để ngăn.
+
+`project-notes.md` gồm 4 mục, giữ nguyên tiêu đề và thay nội dung:
+
+- **Targets** — target nào tồn tại, target nào nhúng trong Admin.
+- **Known state chains** — chuỗi endpoint để đạt từng trạng thái (vd `create-…` → `complete-…`). Skill `analyze` **đọc mục này trước và ghi bổ sung chuỗi mới phát hiện**, nên nó giàu dần theo từng task.
+- **Switchable settings** — setting nào đổi được, bằng endpoint nào, kèm cạm bẫy (vd endpoint là upsert toàn phần chứ không phải patch).
+- **Environment checks** — URL health check của app.
 
 **Secret** (`SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET_KEY`) resolve theo ba nguồn ưu tiên, chỉ cần một trong ba:
 
@@ -153,7 +174,7 @@ Test đi đúng luồng **Admin → app (iframe) → route**; route tương đ�
 | `/e2e data <slug>` | `e2e-data` | Data thật trên store hoặc data sinh mới (unique/biên/pairwise) → `data.md` |
 | `/e2e run <slug>` | `e2e-run` | Thực thi API + browser, phân tích nguyên nhân trỏ `file:line` → `reports/<slug>/report.md` |
 | `/e2e flaky <slug> [fix]` | `e2e-flaky` | Chạy lại, phân loại 4 nhóm nguyên nhân, auto-heal tối đa 5 vòng, tin pass ≥2 lần liên tiếp |
-| `/e2e report <slug>` | `e2e-report` | Tổng hợp `report.md` + xuất `report.csv` |
+| `/e2e report <slug>` | `e2e-report` | Viết phần phân tích vào `report.md` (`report.csv` do engine sinh sẵn) |
 | `/e2e login [target=cms]` | — | `pnpm e2e:login`: mở Chrome → đăng nhập Shopify + 2FA → mở app → đóng cửa sổ, phiên lưu vào profile |
 
 **Chạy toàn bộ chuỗi bằng một lệnh:** `/e2e-full --jira <KEY>` — orchestrator kết hợp mọi skill, ghi tiến độ vào `cases/<slug>/task.md`.
@@ -179,7 +200,7 @@ cases/<slug>/                # ĐẦU VÀO (vd BR-53/)
 
 reports/<slug>/              # ĐẦU RA (gitignore, ghi đè mỗi lần chạy)
   report.md                  # bảng pass/fail theo id case + phân tích
-  report.csv                 # xuất cho Google Sheets / Jira / TestRail
+  report.csv                 # engine tự sinh mỗi lần chạy — Google Sheets / Jira / TestRail
   report.json                # dữ liệu máy đọc
   html/index.html            # báo cáo Playwright, ảnh nhúng sẵn
   artifacts/<test>/          # ảnh chụp mỗi case + trace.zip khi FAIL
@@ -236,7 +257,44 @@ steps:
 ```
 
 - **API step**: `request{method, path, headers?, body?}` + `expect{status?, bodyMatch?}`. `bodyMatch` dùng dot-path.
+- **`risk`** (tùy chọn, `High`/`Medium`/`Low`): mang mức rủi ro từ `plan.md` sang, hiển thị trong `report.md` và cột Risk của `report.csv`.
 - **Browser step**: `case`, `action` (mô tả) và `spec` — Claude sinh file `.ts` dùng fixture `src/browser-fixture.ts`.
+
+### Tiền đề & dọn dẹp — `phase: setup | test | teardown`
+
+Khi test cần dữ liệu chưa có (đơn hàng, thành viên, tài khoản…), **tạo bằng setup step thay vì nhờ người chuẩn bị tay**:
+
+```yaml
+steps:
+  - target: api
+    case: SETUP-01
+    phase: setup                       # chạy trước, tạo tiền đề
+    action: Tạo đơn hàng cho company test
+    request: { method: POST, path: /orders/create-draft-order, body: { ... } }
+    expect: { status: 200 }
+    capture: { draftId: data.draftOrder.id }
+
+  - target: api
+    case: TD-13                        # phase mặc định = test
+    request: { method: GET, path: "/reports/outstanding?order=${draftId}" }
+    expect: { status: 200 }
+
+  - target: api
+    case: TEARDOWN-01
+    phase: teardown                    # luôn chạy, kể cả khi đã abort
+    request: { method: POST, path: /orders/delete-draft-order, body: { id: "${draftId}" } }
+    expect: { status: 200 }
+```
+
+| Phase | Hành vi |
+|---|---|
+| `setup` | Chạy trước. **Fail → dừng**, các `test` còn lại báo **SKIPPED** (không phải FAILED, vì chúng chưa từng có tiền đề hợp lệ) |
+| `test` | Mặc định. **Chỉ phase này tính vào điểm** pass/fail |
+| `teardown` | Luôn chạy, kể cả sau khi abort — dọn dữ liệu setup đã tạo |
+
+Bản ghi **không xoá được** (vd order trong Shopify) → nên **seed một lần rồi assert read-only**, thay vì tạo mới mỗi lần chạy.
+
+Quy tắc quyết định case nào tự động được: `.claude/skills/_shared/references/automation-ladder.md`.
 
 ### Chain luồng nghiệp vụ bằng API
 
@@ -266,17 +324,24 @@ steps:
 
 ## Checklist phương pháp
 
-Các stage tự tham chiếu những checklist framework-agnostic trong `.claude/skills/_shared/references/` để đảm bảo độ bao phủ và kiểm soát chất lượng:
+Các stage tự tham chiếu những tài liệu trong `.claude/skills/_shared/`. Phân tầng: **giữ nguyên** khi đổi app, trừ `project-notes.md`.
 
-| File | Nội dung |
-|---|---|
-| `quality-gate.md` | Self-quality-gate cho plan + definition-of-done cho spec + cấm `waitForTimeout` + thứ tự ưu tiên locator |
-| `field-validation.md` | 15 loại trường; mỗi trường ≥1 positive + ≥2 negative/biên |
-| `api-security.md` | HTTP status cần phủ + OWASP API (BOLA/IDOR cross-shop, mass assignment, rate limit, data leak) |
-| `non-functional.md` | Race/double-submit, session & network, localization, a11y, phân quyền hiển thị |
-| `flaky-taxonomy.md` | Phân loại fail theo nhóm locator / timing / data / feature |
+| File | Nội dung | Đổi app |
+|---|---|---|
+| `conventions.md` | Quy ước chung: triết lý test, quy tắc bằng chứng, app nhúng Admin/iframe, quy tắc viết spec, quy ước ngôn ngữ | giữ |
+| `references/automation-ladder.md` | Thang 5 bậc quyết định case nào tự động được; quy tắc "đi hết chuỗi"; setting là setup step | giữ |
+| `references/quality-gate.md` | Self-quality-gate cho plan + definition-of-done cho spec + cấm `waitForTimeout` + ưu tiên locator | giữ |
+| `references/field-validation.md` | 15 loại trường; mỗi trường ≥1 positive + ≥2 negative/biên | giữ |
+| `references/api-security.md` | HTTP status cần phủ + OWASP API (BOLA/IDOR cross-shop, mass assignment, rate limit, data leak) | giữ |
+| `references/non-functional.md` | Race/double-submit, session & network, localization, a11y, phân quyền hiển thị | giữ |
+| `references/flaky-taxonomy.md` | Phân loại fail theo nhóm locator / timing / data / feature | giữ |
+| **`project-notes.md`** | **Tri thức về app cụ thể**: targets, chuỗi endpoint đạt trạng thái, setting đổi được, health check | **viết lại** |
 
-Cơ chế chống bỏ sót: mỗi **acceptance criteria** phải có ≥1 case, ghi trong `coverage.md`; stage `gen` lặp completeness critic tới khi hai vòng liên tiếp không phát sinh case mới.
+Ba cơ chế chống bỏ sót:
+
+1. **Acceptance criteria** — mỗi AC phải có ≥1 case, ghi trong `coverage.md`; `gen` lặp completeness critic tới khi hai vòng liên tiếp không sinh case mới.
+2. **Thang tự động hoá** — case chỉ được đánh manual sau khi trượt cả 5 bậc, và phải ghi luận cứ từng bậc kèm tên router đã soi. Tiền đề là *entity*, *setting cần đổi* hay *identity cần đăng nhập* đều tự động được.
+3. **Quy tắc bằng chứng** — console là tín hiệu yếu; message gắn nhãn `NOISE` (extension, third-party) không phải bằng chứng về app. Muốn kết luận hạ tầng lỗi phải chạy kiểm trực tiếp và trích output.
 
 ---
 
@@ -291,3 +356,5 @@ Cơ chế chống bỏ sót: mỗi **acceptance criteria** phải có ≥1 case,
 | Config lỗi `undefined variable` | Biến `${VAR}` chưa khai trong `.env` → thêm vào, hoặc dùng `${VAR:-default}` |
 | Profile Chrome bị khóa | Playwright chạy `workers: 1`; đóng cửa sổ Chrome đang dùng chung profile đó |
 | Test chập chờn | `/e2e flaky <slug>` — phân loại nguyên nhân, chỉ tin khi pass ≥2 lần liên tiếp |
+| Case bị đánh "cần chuẩn bị thủ công" trong khi API tạo được dữ liệu | `project-notes.md` chưa có chuỗi endpoint tương ứng → bổ sung vào mục *Known state chains*, rồi `/e2e gen` lại. Thang tự động hoá bắt buộc ghi luận cứ từng bậc trước khi được đánh manual |
+| AI kết luận "tunnel/API chết" mà dịch vụ vẫn sống | Đã suy diễn từ console. Message gắn nhãn `NOISE` (extension, third-party) không phải bằng chứng — yêu cầu chạy `pnpm e2e:doctor` hoặc `curl` và trích output |

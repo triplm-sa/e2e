@@ -21,10 +21,16 @@ Shared conventions: `../_shared/conventions.md`.
 
 3. **Establish traceability.** Map each AC to the real code, endpoint or selector that implements it. Read the `feature/<KEY>` branch diff for every repository in `requirements.diffRepos` (paths resolve relative to `e2e/`). A repository without that branch is untouched by the feature — skip it.
 
-4. **Hunt for ambiguity and contradictions.** Look for missing bounds, undefined error or timeout behaviour, unstated alternate flows, and unclear business rules. List them as `Q1`, `Q2`, …
+4. **Map how to reach every required state — do this before anyone judges what is automatable.** List what the tests need: entities (orders, members, accounts), **settings or modes to switch** (account type, feature toggles, payment terms) and **identities** to act as.
 
-5. **Confirm with the tester** via `AskUserQuestion` (at most four questions per round) for anything that changes the tests. Where a point cannot be settled, record it explicitly as a stated assumption.
+   Start from `../_shared/project-notes.md`, which records the chains already discovered for this app. For anything not listed, find the path yourself: grep the routers and controllers for mutating endpoints (`POST`, `PUT`, `PATCH`, `DELETE`), read any OpenAPI or GraphQL schema, and look at the endpoint the app's own UI calls. **Follow each chain to the end** — a create endpoint that only yields a draft is not the answer if a complete/approve/activate endpoint exists.
 
-6. **Write `analysis.md`** containing: the numbered AC list, the AC-to-code traceability, the questions with their answers or assumptions, and a preliminary risk rating (High / Medium / Low) per area.
+   Record a table: required state → chain of endpoints → cleanup → rung on `../_shared/references/automation-ladder.md`. **Append newly discovered chains to `project-notes.md`** so the next task starts from a richer map. This table is what stops `e2e-gen` from writing off cases as "needs manual preparation" when the system could reach the state itself.
+
+5. **Hunt for ambiguity and contradictions.** Look for missing bounds, undefined error or timeout behaviour, unstated alternate flows, and unclear business rules. List them as `Q1`, `Q2`, …
+
+6. **Confirm with the tester** via `AskUserQuestion` (at most four questions per round) for anything that changes the tests. Where a point cannot be settled, record it explicitly as a stated assumption.
+
+7. **Write `analysis.md`** containing: the numbered AC list, the AC-to-code traceability, the **data-creation table from step 4**, the questions with their answers or assumptions, and a preliminary risk rating (High / Medium / Low) per area.
 
 Finish by suggesting `/e2e gen --jira <KEY>`, which will read `analysis.md`.

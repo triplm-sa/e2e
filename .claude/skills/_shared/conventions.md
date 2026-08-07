@@ -2,7 +2,9 @@
 
 Read the relevant sections from every `e2e-*` skill. The harness lives in `e2e/` and is config-driven via `e2e/e2e.config.yaml`.
 
-One task = one folder `cases/<slug>/`; run output goes to `reports/<slug>/`. `<slug>` = ticket key (e.g. `BR-53`) or a feature name. Keep **case ids consistent** across analysis → plan → coverage → yaml → spec → report.
+**Where knowledge belongs.** The harness targets Shopify apps, so **platform-level facts stay here** — admin deep links, embedded-app iframes, storefront console noise, session and 2FA handling. What must *not* live here is knowledge of **one particular app**: its target names, app handle, endpoint chains, personas and environment URLs. Those belong in `project-notes.md`, the single file to replace when adopting the harness for another app. Keep the rules in this folder true for any Shopify app.
+
+One task = one folder `cases/<slug>/`; run output goes to `reports/<slug>/`. `<slug>` = the ticket key (e.g. `PROJ-123`) or a feature name. Keep **case ids consistent** across analysis → plan → coverage → yaml → spec → report.
 
 ## Language policy
 
@@ -14,7 +16,16 @@ One task = one folder `cases/<slug>/`; run output goes to `reports/<slug>/`. `<s
 ## Testing philosophy
 
 - Verify **business logic and user flows like a real user** — not just console output. Every case needs a **concrete business assertion** (computed value, rendered content, state after an action). Never stop at "the page loaded".
-- Console errors (`[console.error]` / `[pageerror]` / `[requestfailed]`) are recorded in the report but are **not** a pass criterion. On the Shopify storefront, never assert `expect(consoleErrors).toEqual([])` — the platform always emits noise.
+- Console errors (`[console.error]` / `[pageerror]` / `[requestfailed]`) are recorded in the report but are **not** a pass criterion. The Shopify storefront constantly emits unrelated output (analytics, CSP reports, third-party scripts), so never assert `expect(consoleErrors).toEqual([])`.
+
+## Evidence rule — never diagnose from a log line alone
+
+Console output is a **weak signal**. It may never be the sole basis for any conclusion, and in particular never for a claim that the environment is broken.
+
+- The fixture tags each captured message with its origin. Anything marked `NOISE` — a browser extension, a dev-tool websocket, a third-party host — is **not evidence about the application**. Do not build a diagnosis on it.
+- Before asserting that infrastructure is down (tunnel dead, API unreachable, session expired), run a **direct check and quote its output**: `curl -o /dev/null -w '%{http_code}' <url>`, `pnpm e2e:doctor`, or a screenshot showing the page failed to render. No verification, no claim.
+- When the cause is genuinely unclear, say so and list what was checked. An honest "unclear, here is what I ruled out" is correct; a confident wrong attribution wastes the team's time and can send a healthy service to be "fixed".
+- The same rule applies in reverse: do not dismiss a real failure as noise without checking its origin tag.
 - Targets are declared in `e2e.config.yaml` (`kind: api|browser`). Never hard-code a fixed set of layers.
 
 ## Task folder layout
@@ -23,14 +34,18 @@ Input — `cases/<slug>/`: `analysis.md` (analyze) · `recon.md` (recon) · `pla
 
 Output — `reports/<slug>/`: `report.md` · `report.csv` · `report.json` · `html/index.html` · `artifacts/`.
 
-## CMS = app embedded in Shopify Admin — always Admin → app (iframe) → route
+## Embedded admin apps — always Shopify Admin → app (iframe) → route
 
-**Never `goto` the app's own domain directly** — that bypasses the Shopify session and App Bridge. The `cms` target's `baseUrl` is an Admin deep link: `https://admin.shopify.com/store/<store>/apps/<app-handle>` (this project: `b2bridge-app`). The app UI renders **inside an iframe** whose `src` matches `target.appIframeSrc`:
+An app embedded in Shopify Admin must be reached through the Admin, never at its own domain: going direct bypasses the Shopify session and App Bridge, and it is not the flow a merchant takes.
+
+Such a target declares `baseUrl` as the **Admin deep link** — `https://admin.shopify.com/store/<store>/apps/<app-handle>`, with routes appended — and `appIframeSrc`, the host of the iframe the app renders in. Every interaction goes through that frame:
 
 ```ts
 const app = page.frameLocator('iframe[src*="<appIframeSrc>"]');
 // Every interaction and assertion goes through `app`, never the outer `page`.
 ```
+
+Store and app handle come from `.env` (`${STORE}`, `${APP_HANDLE}`); which targets are embedded is recorded in `project-notes.md`.
 
 ## Reliability rules for Playwright specs
 

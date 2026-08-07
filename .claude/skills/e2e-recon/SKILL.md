@@ -11,7 +11,7 @@ This skill drives **claude-in-chrome**: the tester's own Chrome, already signed 
 
 Shared conventions: `../_shared/conventions.md`.
 
-**Input:** `<slug>` (with an existing `plan.md` or `cases.yaml` so the flow to inspect is known), or a URL/route plus a description of the flow. Ask the tester if neither is available.
+**Input:** `<slug>` (with an existing `plan.md` or `cases.yaml` so the flow to inspect is known), or a URL/route plus a description of the flow. Ask the tester if neither is available. Check `../_shared/project-notes.md` first for which targets are embedded in Shopify Admin and therefore need frame handling.
 
 **Output:** `cases/<slug>/recon.md`, **written in Vietnamese** (see the language policy in conventions).
 

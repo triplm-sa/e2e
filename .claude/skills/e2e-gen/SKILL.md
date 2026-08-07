@@ -39,7 +39,18 @@ Read the `feature/<KEY>` branch diff for every repository in `requirements.diffR
 `plan.md` is what the tester approves, so keep it in plain business language: translate every technical term, and include no selectors, HTTP methods or paths. Structure it as:
 
 - A coverage checklist grouped by scenario.
-- The case table: `| # | AC | Risk | Scenario | Action | Expected result | Automatable? |` — a short id such as `TD-01`, the AC it covers, the risk rating, and an honest automatable column: yes, "needs \<preparation\>", or not-yet-automated with the reason stated rather than hidden.
+- The case table: `| # | AC | Risk | Scenario | Action | Expected result | Automatable? |` — a short id such as `TD-01`, the AC it covers, and the risk rating.
+
+**Filling the "Automatable?" column is a decision, not an impression.** Apply `../_shared/references/automation-ladder.md` to every case whose precondition is not already satisfied. The precondition may be an entity, a **setting or mode to switch**, or an **identity to log in as** — all three are automatable.
+
+- Reachable via an API, the app's or another service's → **automatable**; plan `phase: setup` steps to reach the state and `phase: teardown` steps to undo it.
+- Reachable only through the UI → **automatable** via setup inside the spec; note that it is slower.
+- **Follow the chain to the end.** Finding the first endpoint is not the answer. If `create-…` yields only a draft and a `complete-…` endpoint exists, the chain continues; stopping at the draft and skipping the case is a defect.
+- Only when every rung fails may a case be manual, and the cell must carry the **per-rung justification** required by the ladder, naming the routers inspected.
+
+Use the state-reachability table from `analysis.md` (step 4 of `e2e-analyze`) as input, together with the chains already recorded in `../_shared/project-notes.md`. If neither exists, build the table now by listing the mutating endpoints — never fall back to "needs preparation" without that list.
+
+**Gate before step 6:** for every case not marked automatable, confirm the cell contains a per-rung verdict with named endpoints or routers. A bare "needs a company with orders", "needs the account type changed" or "needs real data" is not a valid entry — resolve it into setup steps or write the full justification. Do not present a plan that still contains one.
 
 ## 5. Completeness critic — loop until dry
 
@@ -60,6 +71,10 @@ Show only the human-readable table — never the YAML — together with a **cove
 ## 7. Compile the approved plan
 
 - **API case** → a step in `cases.yaml` with `case: <id>`, `request`, and `expect{status, bodyMatch}`. Steps run **sequentially**, so a business flow can be chained: `capture: { var: <body.path> }` stores a value from the response and later steps interpolate `${var}` into path, headers or body. A string equal to exactly `"${var}"` keeps its type; interpolation inside a longer string yields text. **Any YAML value containing `${...}` must be quoted.** A capture path missing from the response fails the step.
+
+- **Carry the risk rating across.** Every `test` step gets `risk: High | Medium | Low`, copied from the plan, so the report and the generated `report.csv` can show it without anyone re-deriving it.
+
+- **Precondition and cleanup steps** → same shape, plus `phase: setup` or `phase: teardown`. Setup steps run first and create the data the tests need; if one fails the remaining tests are reported as **SKIPPED rather than FAILED**, because they never received valid preconditions. Only `test` steps count towards the score. Teardown always runs, including after an abort, so anything setup created gets removed. Records that cannot be deleted (orders, for example) should be seeded once and asserted read-only instead of recreated every run — state that choice in the plan.
 - **Browser case** → a step in `cases.yaml` (`case: <id>`, `action`, `spec`) plus the spec in `browser/<slug>.spec.ts`: import the fixture from `../../../src/browser-fixture.js` and start each test title with the case id, e.g. `test("TD-01 · …")`. Follow the template, the reliability rules and the embedded-app iframe guidance in `../_shared/conventions.md`. Before treating the spec as finished, run the definition of done in `quality-gate.md` section B.
 
 Keep **case ids identical** across plan, coverage, yaml and spec.

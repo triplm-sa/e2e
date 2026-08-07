@@ -3,7 +3,7 @@ import { evalExpect, getPath } from "./assert.js";
 import type { ApiStep, Target, StepResult } from "./types.js";
 
 /** Interpolate `${var}` with captured values. A string equal to exactly `${var}` → preserves the type; within a string → text. */
-function interpolate(value: unknown, vars: Record<string, unknown>): unknown {
+export function interpolate(value: unknown, vars: Record<string, unknown>): unknown {
   if (typeof value === "string") {
     const exact = value.match(/^\$\{(\w+)\}$/);
     if (exact) return exact[1] in vars ? vars[exact[1]] : value; // preserve the type (number/bool/object)

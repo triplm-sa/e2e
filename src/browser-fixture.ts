@@ -62,7 +62,21 @@ export const test = base.extend<Fixtures & { _errors: string[] }, { _profiles: M
         origGoto(/^https?:\/\//.test(url) ? url : new URL(url.replace(/^\//, ""), base).toString(), opts)) as Page["goto"];
       // Treat requestfailed as an error only if it is on the same host as the target (drop third-party analytics/CDN noise).
       const targetHost = (() => { try { return new URL(t.baseUrl).host; } catch { return ""; } })();
-      page.on("console", (m) => { if (m.type() === "error") _errors.push(`[console.error] ${m.text()}`); });
+      // Tag where a console message came from. Browser extensions and third-party scripts emit
+      // errors that have nothing to do with the app; labelling them NOISE at capture time stops
+      // them from later being misread as evidence that the app or its tunnel is down.
+      const originTag = (url: string): string => {
+        if (!url) return " [origin:unknown]";
+        if (/^(chrome|moz|safari-web)-extension:\/\//.test(url)) return " [browser-extension · NOISE]";
+        let host = "";
+        try { host = new URL(url).host; } catch { return " [origin:unknown]"; }
+        return host === targetHost ? "" : ` [third-party:${host} · NOISE]`;
+      };
+      page.on("console", (m) => {
+        if (m.type() !== "error") return;
+        const url = m.location()?.url ?? "";
+        _errors.push(`[console.error]${originTag(url)} ${m.text()}${url ? `  (${url})` : ""}`);
+      });
       page.on("pageerror", (e) => _errors.push(`[pageerror] ${e.message}`));
       page.on("requestfailed", (r) => {
         let host = "";

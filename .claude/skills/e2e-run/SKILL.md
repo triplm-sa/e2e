@@ -21,9 +21,12 @@ Shared conventions and prerequisites: `../_shared/conventions.md`.
 
 3. Read `reports/<slug>/report.json` and the console attachments, then merge the browser results into `report.md`, matching rows by case id. Point the tester at `html/index.html` and the images in `artifacts/`; a trace file needs `pnpm exec playwright show-trace <file>` to open.
 
-4. **Analyse every failure** in the report's analysis section, citing `file:line`. Classify each one using `../_shared/references/flaky-taxonomy.md`:
+4. **Analyse every failure** in the report's analysis section, citing `file:line`. Observe the evidence rule in `../_shared/conventions.md`: a console line is a weak signal, messages tagged `NOISE` (browser extension, third-party host) are not evidence about the application, and **any claim that the environment is broken must be backed by a direct check whose output you quote** (`curl` the URL, `pnpm e2e:doctor`, a screenshot of the unrendered page). Where the cause is unclear, say so and list what was ruled out.
+
+   Classify each failure using `../_shared/references/flaky-taxonomy.md`:
    - A message containing `[NEEDS-SELECTOR-REVIEW]` is a **spec or environment** problem — suggest `/e2e recon` or a spec review, and do not report a feature defect.
    - Only a failure in a **business assertion** (no such prefix) indicates a **genuine feature defect** — trace it into the source.
    - Intermittent results → hand over to `/e2e flaky`.
+   - Steps marked **SKIPPED** were never executed because a `phase: setup` step failed before them. Report them as not-yet-verified and fix the setup; never present them as feature defects. Only `test` steps count towards the pass/fail total.
 
 5. Summarise for the tester: pass and fail counts, notable console errors, and the suspected cause of each failure. To export CSV or re-consolidate, use `/e2e report`.

@@ -10,3 +10,5 @@ Never jump to "the feature is broken". Classify every failing step into one of f
 | **Feature (genuine)** | Failure in a **business assertion** (no `[NEEDS-SELECTOR-REVIEW]` prefix); a value, text or computation contradicts the AC. | This is a real **feature defect**. Point to the cause as `file:line` and cite the ticket AC. |
 
 **Confirming stability:** re-run any automated case suspected of flakiness and trust it only after it **passes twice in a row**. State the failure category explicitly in the report's analysis section so the tester knows whether to fix the spec or raise a defect with the developer.
+
+**Before choosing the environment category, verify it.** Console output alone never establishes that a tunnel, service or session is down — messages tagged `NOISE` (browser extension, third-party host) say nothing about the application. Run a direct check and quote its output (`curl -o /dev/null -w '%{http_code}' <url>`, `pnpm e2e:doctor`, or a screenshot of the unrendered page) before attributing a failure to infrastructure. If nothing confirms it, classify the failure as unclear and list what was ruled out.
