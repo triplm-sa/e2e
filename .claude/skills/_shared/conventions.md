@@ -54,6 +54,39 @@ Store and app handle come from `.env` (`${STORE}`, `${APP_HANDLE}`); which targe
 3. **Assert strictly** — check concrete values and computations, not merely "the element exists".
 4. **Smart waits and locators** — `waitForTimeout` and fixed sleeps are forbidden; use web-first assertions. Locator priority: role/label/text → testid → id → CSS → XPath last. Details in `references/quality-gate.md` sections C and D.
 
+### Running tests in parallel
+
+Workers each launch from their own snapshot of the login profile, so several browsers can run at once. Playwright still runs the tests **inside one file serially** unless the file opts in, and that opt-in is the spec's decision because only the spec knows which cases share state.
+
+Split the cases into groups and declare each one:
+
+```ts
+// Independent: these only read, or only touch data they created under their own name.
+test.describe("wizard validation", () => {
+  test.describe.configure({ mode: "parallel" });
+  test("TD-60 · …", async ({ openTarget }) => { /* … */ });
+});
+
+// Shared state: anything that writes a shop-wide setting, or asserts a store-wide total.
+test.describe("shipping rates", () => {
+  test.describe.configure({ mode: "serial" });
+  test("TD-54 · …", async ({ openTarget }) => { /* … */ });
+});
+```
+
+A case belongs in a **serial** group when it:
+
+- writes a **shop-wide setting** (another test would see the flipped value mid-run);
+- **deletes by a shared prefix** or otherwise clears a collection another test is using;
+- asserts a **store-wide total** — an exact count only holds while nothing else is creating records.
+
+Two habits make far more cases parallel-safe, and are worth applying while the spec is being written:
+
+1. **Namespace created data per worker.** Name fixtures with the worker index, e.g. `` `E2E ${slug} w${test.info().workerIndex}-…` ``, and clean up only what matches that name. A cleanup that deletes every record with a shared prefix destroys other workers' fixtures.
+2. **Scope assertions to your own data.** Assert the count of records matching your namespace, not the total in the store.
+
+Read-only cases that never save are parallel-safe as written.
+
 ### Browser spec template
 
 Replace the target name, route and selectors with the real ones for the feature under test; keep the structure.

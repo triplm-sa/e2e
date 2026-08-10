@@ -1,21 +1,9 @@
 import { chromium, type Frame, type Page } from "@playwright/test";
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { loadConfig, resolveTarget } from "./config.js";
 import { persistentOpts } from "./chrome-opts.js";
-
-/**
- * Chrome locks a profile directory while it is open, so probing would fight a running test suite.
- * Work on a throwaway copy instead: the login state lives in small files, while the caches are the
- * bulk of the directory, so skipping them keeps the copy quick. The real profile is never touched.
- */
-function copyProfile(source: string): string {
-  const dest = mkdtempSync(join(tmpdir(), "e2e-probe-"));
-  const skip = /(^|\/)(Cache|Code Cache|GPUCache|DawnCache|DawnGraphiteCache|DawnWebGPUCache|ShaderCache|GrShaderCache|Shared Dictionary|CacheStorage|Service Worker|SingletonLock|SingletonCookie|SingletonSocket)(\/|$)/;
-  cpSync(source, dest, { recursive: true, filter: (src) => !skip.test(src.slice(source.length)) });
-  return dest;
-}
+// Probing runs on a copy so it never fights a running suite for Chrome's profile lock.
+import { copyProfile, removeProfile } from "./profile.js";
 
 /**
  * Check selectors against a live page without running the test suite.
@@ -108,5 +96,5 @@ console.log(
     : `\n❌ ${bad}/${selectors.length} selector có vấn đề (0 match = đoán sai, >1 match = mơ hồ sẽ gây flaky).`,
 );
 await ctx.close();
-rmSync(profile, { recursive: true, force: true });
+removeProfile(profile);
 process.exit(bad === 0 ? 0 : 1);

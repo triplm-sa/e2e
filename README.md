@@ -55,6 +55,7 @@ Nhờ tách lớp: cùng một bộ test cho ra cùng kết quả, chạy lại 
 | `doctor.ts` | Preflight: Chrome, config, chữ ký token, phiên đăng nhập, tình trạng API |
 | `all.ts` | Chạy trọn doctor → API → browser cho một hoặc nhiều task |
 | `login.ts` | Lưu phiên đăng nhập (chrome-profile hoặc storage-state) |
+| `profile.ts` | Nhân bản profile Chrome (bỏ cache) — gỡ khoá độc quyền để chạy song song |
 | `probe.ts` | Kiểm selector trên trang thật, không chạy test — báo 0 match / >1 match |
 | `retry.ts` | Chạy lại chỉ test đã fail (`--last-failed`) hoặc một case |
 
@@ -269,6 +270,28 @@ Chi phí lớn nhất không phải một lần chạy, mà là **lặp: chạy 
 
 Chỉ chạy `pnpm e2e:all` **một lần ở cuối** để xác nhận không có hồi quy.
 
+### Chạy song song
+
+Chrome khoá độc quyền thư mục profile, nên trước đây chỉ chạy được 1 worker. Giờ mỗi worker (từ worker thứ 2) khởi chạy trên **bản sao riêng** của profile đăng nhập — bỏ cache nên chỉ vài MB — còn profile gốc chỉ được đọc, không bao giờ bị ghi hay hỏng.
+
+⚠️ **Tăng `E2E_WORKERS` một mình không đủ.** Playwright chạy các test **trong cùng một file** tuần tự, trừ khi file tự khai báo. Việc khai báo thuộc về spec, vì chỉ spec mới biết case nào dùng chung trạng thái:
+
+```ts
+test.describe("wizard validation", () => {
+  test.describe.configure({ mode: "parallel" });   // độc lập → song song
+  …
+});
+
+test.describe("shipping rates", () => {
+  test.describe.configure({ mode: "serial" });     // dùng chung dữ liệu → tuần tự
+  …
+});
+```
+
+Case phải nằm nhóm **serial** khi nó: ghi **setting toàn shop**, **xoá theo prefix dùng chung**, hoặc assert **tổng số bản ghi toàn store**. Hai thói quen giúp nhiều case song song được hơn: **đặt tên dữ liệu theo worker** (`w${test.info().workerIndex}`) và chỉ dọn đúng phần mang tên đó; **assert theo namespace của mình**, không assert tổng toàn store.
+
+> Profile gốc chỉ được đọc nên không còn nhận cập nhật phiên trong lúc chạy — khi phiên hết hạn vẫn dùng `pnpm e2e:login <target>` như trước.
+
 Biến môi trường hữu ích:
 
 | Biến | Tác dụng |
@@ -276,6 +299,7 @@ Biến môi trường hữu ích:
 | `E2E_CONFIG` | Đường dẫn `e2e.config.yaml` khi chạy từ ngoài thư mục `e2e/` |
 | `E2E_OUTDIR` | Thư mục đầu ra cho lần chạy browser |
 | `E2E_HEADLESS=1` | Chạy browser ẩn (mặc định hiện cửa sổ để giảm rủi ro bị Cloudflare chặn) |
+| `E2E_WORKERS=N` | Số worker chạy song song (mặc định 4) |
 
 ---
 

@@ -2,6 +2,7 @@ import { test as base, expect, chromium, type BrowserContext, type Page } from "
 import { resolve } from "node:path";
 import { loadConfig } from "./config.js";
 import { persistentOpts } from "./chrome-opts.js";
+import { copyProfile, removeProfile } from "./profile.js";
 
 const CONFIG_PATH = process.env.E2E_CONFIG ?? resolve(process.cwd(), "e2e.config.yaml");
 const cfg = loadConfig(CONFIG_PATH); // resolves ${VAR} from e2e/.env / process.env
@@ -18,13 +19,18 @@ type Fixtures = {
   openTarget: (name: string) => Promise<Page>;
 };
 
-export const test = base.extend<Fixtures & { _errors: string[] }, { _profiles: Map<string, BrowserContext> }>({
-  // Worker-scoped: cache the persistent context per profile directory to avoid relaunching/locking the profile repeatedly.
+type ProfileEntry = { ctx: BrowserContext; dir: string; copied: boolean };
+
+export const test = base.extend<Fixtures & { _errors: string[] }, { _profiles: Map<string, ProfileEntry> }>({
+  // Worker-scoped: cache the persistent context per profile directory to avoid relaunching it per test.
   _profiles: [
     async ({}, use) => {
-      const m = new Map<string, BrowserContext>();
+      const m = new Map<string, ProfileEntry>();
       await use(m);
-      for (const ctx of m.values()) await ctx.close().catch(() => {});
+      for (const { ctx, dir, copied } of m.values()) {
+        await ctx.close().catch(() => {});
+        if (copied) removeProfile(dir); // the worker's snapshot has served its purpose
+      }
     },
     { scope: "worker" },
   ],
@@ -39,13 +45,18 @@ export const test = base.extend<Fixtures & { _errors: string[] }, { _profiles: M
       let page: Page;
       if (t.auth.type === "chrome-profile") {
         // Reuse the already-logged-in Chrome profile (via e2e:login). baseURL enables goto("/path").
-        const dir = resolve(process.cwd(), t.auth.profileDir);
-        let ctx = _profiles.get(dir);
-        if (!ctx) {
-          ctx = await chromium.launchPersistentContext(dir, { ...persistentOpts(HEADLESS), baseURL: t.baseUrl });
-          _profiles.set(dir, ctx);
+        const master = resolve(process.cwd(), t.auth.profileDir);
+        let entry = _profiles.get(master);
+        if (!entry) {
+          // Chrome locks a profile directory, so workers cannot share one. Beyond the first worker,
+          // launch from a private snapshot instead; the master profile is then only ever read.
+          const copied = testInfo.workerIndex > 0;
+          const dir = copied ? copyProfile(master, `${master}-w${testInfo.workerIndex}`) : master;
+          const ctx = await chromium.launchPersistentContext(dir, { ...persistentOpts(HEADLESS), baseURL: t.baseUrl });
+          entry = { ctx, dir, copied };
+          _profiles.set(master, entry);
         }
-        page = await ctx.newPage();
+        page = await entry.ctx.newPage();
         openedPages.push(page);
       } else {
         const storageState = t.auth.type === "storage-state" ? resolve(process.cwd(), t.auth.file) : undefined;
