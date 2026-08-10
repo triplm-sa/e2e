@@ -87,6 +87,39 @@ Two habits make far more cases parallel-safe, and are worth applying while the s
 
 Read-only cases that never save are parallel-safe as written.
 
+### What a test actually costs — reach preconditions through the API
+
+Loading a page is the expensive operation, and for an embedded Shopify app it is far more expensive
+than it looks. Measured on a real app: **7–12s per load**, of which only ~30ms is opening the tab —
+the rest is Shopify Admin plus App Bridge booting inside the iframe. It does **not** get cheaper on
+repeat, and reusing the tab does not help, because `page.goto` reloads Admin either way.
+
+So the cost of a browser case is roughly *(number of page loads) × 10s* plus the assertions. That
+makes one rule worth more than any other tuning:
+
+**Never drive the UI to establish a precondition an API can set.** When the assertion is on screen B
+but the setup happens on screen A, going through screen A's UI costs a full app boot and one or more
+saves — 12–20s — to reach a state a single request could have set. Put it in a `phase: setup` step,
+or call the API directly from the spec, and spend the browser only on what is actually being asserted.
+
+The distinction is what the AC is about:
+
+- AC describes **what the buyer sees** after a setting changes → set the setting via API, load only
+  the buyer's page.
+- AC describes **the admin screen itself** (the toggle defaults off, Save enables the save bar,
+  Discard restores) → the UI is the thing under test, so drive it.
+
+This is the same reasoning as `references/automation-ladder.md`, applied for speed rather than
+reachability: there, the API is how an "unautomatable" case becomes automatable; here it is how an
+automatable case stops costing a page load it never needed.
+
+Two smaller habits, worth having but far behind the rule above:
+
+- Prefer `waitUntil: "domcontentloaded"` over `"load"` — `"load"` also waits for every image,
+  font and analytics beacon, none of which an assertion depends on.
+- Fixed sleeps (`waitForTimeout`) are already forbidden; they are dead time that also hides a race
+  instead of fixing it.
+
 ### Bounding a hung test — stop and state the cause
 
 A run must always terminate on its own. Every layer is bounded in `playwright.config.ts` (browser) and
