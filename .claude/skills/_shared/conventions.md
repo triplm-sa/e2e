@@ -87,6 +87,43 @@ Two habits make far more cases parallel-safe, and are worth applying while the s
 
 Read-only cases that never save are parallel-safe as written.
 
+### Bounding a hung test — stop and state the cause
+
+A run must always terminate on its own. Every layer is bounded in `playwright.config.ts` (browser) and
+`src/api-runner.ts` (API), each overridable by an environment variable:
+
+| Bound | Default | Env | What trips it |
+|---|---|---|---|
+| Action (click, fill, …) | 15s | `E2E_ACTION_TIMEOUT` | A locator that never resolves — **usually a wrong selector** |
+| Assertion (`expect`) | 10s | `E2E_EXPECT_TIMEOUT` | The value never reaches the expected state |
+| Navigation | 30s | `E2E_NAV_TIMEOUT` | The page never loads |
+| One API request | 30s | `E2E_API_TIMEOUT` | The service accepted the connection and stopped answering |
+| One test | 60s | `E2E_TEST_TIMEOUT` | The test as a whole is too slow |
+| The whole run | 20 min | `E2E_GLOBAL_TIMEOUT` | Hard ceiling — the suite stops no matter what |
+| Failures before aborting | 5 | `E2E_MAX_FAILURES` | A broken spec stops early instead of grinding through every case |
+
+The inner bounds are the ones that matter, because **the tighter the bound that trips, the more precise
+the diagnosis**. A bare test timeout says only "ran too long"; an action timeout names the exact locator
+it waited for, which is normally the answer.
+
+**Rules when a test hangs:**
+
+1. **Never raise a timeout to make a hang pass.** A hang is a symptom — a wrong selector, a missing
+   precondition, a state that never arrives. Raising the limit hides the cause and multiplies run time
+   across every future run. Diagnose first; raise the limit only when the step is genuinely slow
+   (a real checkout, a bulk import), and say why in a comment on that line.
+2. **Verify the selector rather than waiting on it.** `pnpm e2e:probe <target> <route> "<selector>"`
+   answers in seconds whether it matches `0` (wrong) or `>1` (ambiguous). That is the first check after
+   any action timeout.
+3. **Report a cause, or say the cause is unknown.** Quote the innermost failing bound and its message.
+   Guessing at a cause is covered by the Evidence rule above.
+4. **`maxFailures` aborting is information, not an error.** Five failures usually means one shared
+   breakage (an expired session, a dead service, a renamed container), not five defects. Find that one
+   cause before re-running.
+
+When invoking the suite from a shell, pass an explicit command timeout larger than the expected suite
+duration, otherwise the shell kills the run and the report never gets written.
+
 ### Browser spec template
 
 Replace the target name, route and selectors with the real ones for the feature under test; keep the structure.

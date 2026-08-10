@@ -2,6 +2,9 @@ import { apiAuthHeaders } from "./auth/index.js";
 import { evalExpect, getPath } from "./assert.js";
 import type { ApiStep, Target, StepResult } from "./types.js";
 
+/** Upper bound for a single API request, so an unresponsive service fails the step instead of hanging the run. */
+const API_TIMEOUT_MS = Number(process.env.E2E_API_TIMEOUT ?? 30_000);
+
 /** Interpolate `${var}` with captured values. A string equal to exactly `${var}` → preserves the type; within a string → text. */
 export function interpolate(value: unknown, vars: Record<string, unknown>): unknown {
   if (typeof value === "string") {
@@ -38,10 +41,14 @@ export async function runApiStep(
       ...((interpolate(step.request.headers ?? {}, vars)) as Record<string, string>),
     };
     const body = step.request.body !== undefined ? interpolate(step.request.body, vars) : undefined;
+    // Node's fetch has NO default timeout: an API that accepts the connection and never answers
+    // would hang the whole run with nothing to show for it. Bound it so the step fails with a
+    // stated cause instead.
     const res = await fetch(target.baseUrl + path, {
       method: step.request.method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
     });
     const text = await res.text();
     let parsed: unknown = text;
@@ -63,6 +70,14 @@ export async function runApiStep(
       captured,
     };
   } catch (err) {
-    return { result: { ...base, passed: false, detail: `request error: ${(err as Error).message}` }, captured: {} };
+    // Name a timeout for what it is. "The operation was aborted" tells the reader nothing about
+    // which request stalled or for how long; the report has to state a cause, not a symptom.
+    const e = err as Error;
+    const detail =
+      e.name === "TimeoutError" || e.name === "AbortError"
+        ? `timeout sau ${API_TIMEOUT_MS / 1000}s — ${step.request.method} ${path} không phản hồi. `
+          + `Kiểm tra API còn sống (curl ${target.baseUrl}/health/live) hoặc tăng E2E_API_TIMEOUT.`
+        : `request error: ${e.message}`;
+    return { result: { ...base, passed: false, detail }, captured: {} };
   }
 }

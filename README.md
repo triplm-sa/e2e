@@ -301,6 +301,31 @@ Biến môi trường hữu ích:
 | `E2E_HEADLESS=1` | Chạy browser ẩn (mặc định hiện cửa sổ để giảm rủi ro bị Cloudflare chặn) |
 | `E2E_WORKERS=N` | Số worker chạy song song (mặc định 4) |
 
+### Giới hạn thời gian — case treo phải dừng và nêu nguyên nhân
+
+Mọi lượt chạy đều tự kết thúc, không bao giờ treo vô hạn. Mỗi tầng có một mốc chặn riêng:
+
+| Mốc chặn | Mặc định | Biến môi trường | Kích hoạt khi |
+|---|---|---|---|
+| Một thao tác (click, fill…) | 15s | `E2E_ACTION_TIMEOUT` | Locator không bao giờ khớp — **thường là selector sai** |
+| Một assertion (`expect`) | 10s | `E2E_EXPECT_TIMEOUT` | Giá trị không đạt trạng thái mong đợi |
+| Điều hướng trang | 30s | `E2E_NAV_TIMEOUT` | Trang không load được |
+| Một request API | 30s | `E2E_API_TIMEOUT` | Service nhận kết nối rồi ngừng phản hồi |
+| Một test | 60s | `E2E_TEST_TIMEOUT` | Tổng thể test quá chậm |
+| Cả lượt chạy | 20 phút | `E2E_GLOBAL_TIMEOUT` | Trần cứng — suite dừng trong mọi trường hợp |
+| Số lần fail trước khi hủy | 5 | `E2E_MAX_FAILURES` | Spec hỏng thì dừng sớm thay vì cày hết mọi case |
+
+**Mốc chặn bên trong mới là mốc quan trọng, vì mốc nào chặt hơn thì chẩn đoán càng chính xác.** Timeout ở mức test chỉ nói được "chạy quá lâu"; timeout ở mức thao tác chỉ đích danh locator đang chờ — thường chính là câu trả lời:
+
+```
+TimeoutError: locator.click: Timeout 15000ms exceeded.
+  - waiting for getByRole('button', { name: 'ThisButtonDoesNotExist' })
+```
+
+⚠️ **Không nâng timeout để case treo chạy lọt.** Treo là *triệu chứng* — selector sai, thiếu tiền đề, hoặc trạng thái không bao giờ tới. Nâng giới hạn chỉ giấu nguyên nhân và nhân thời gian chạy lên cho mọi lượt sau. Chẩn đoán trước; chỉ nâng khi bước đó thật sự chậm (checkout thật, import hàng loạt) và ghi rõ lý do trong comment ngay dòng đó. Sau mỗi action timeout, việc đầu tiên là `pnpm e2e:probe` để kiểm selector.
+
+Khi gọi suite từ shell, đặt timeout của lệnh **lớn hơn** thời lượng suite dự kiến, nếu không shell sẽ giết lượt chạy và report không kịp ghi.
+
 ---
 
 ## Định dạng test case
