@@ -34,6 +34,8 @@ If the browser tools are deferred, load them in a single call:
 
 Write `recon.md` as a table: `| Case | Element / meaning | Proposed selector | Real data | Notes (iframe, overlay…) |`.
 
+Before handing selectors over, confirm them in one batch with `pnpm e2e:probe <target> <route> "<selector>" …` — it runs headless on a copy of the login profile, so it neither fights a running suite nor risks the real profile, and it reports ambiguous selectors that a single successful click would have hidden.
+
 Also record two kinds of finding, because they are the main value of this stage:
 - **Route and structure discoveries** that contradict assumptions (for example a settings tab rather than a dedicated route).
 - **Documentation-versus-implementation gaps** — controls described in the ticket that do not exist, or defects visible on screen. Report these before any test is written.

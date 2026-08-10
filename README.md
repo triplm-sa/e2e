@@ -55,6 +55,8 @@ Nhờ tách lớp: cùng một bộ test cho ra cùng kết quả, chạy lại 
 | `doctor.ts` | Preflight: Chrome, config, chữ ký token, phiên đăng nhập, tình trạng API |
 | `all.ts` | Chạy trọn doctor → API → browser cho một hoặc nhiều task |
 | `login.ts` | Lưu phiên đăng nhập (chrome-profile hoặc storage-state) |
+| `probe.ts` | Kiểm selector trên trang thật, không chạy test — báo 0 match / >1 match |
+| `retry.ts` | Chạy lại chỉ test đã fail (`--last-failed`) hoặc một case |
 
 Unit test của chính engine nằm ở `tests/` — chạy bằng `pnpm test`.
 
@@ -243,11 +245,29 @@ pnpm e2e:doctor
 pnpm e2e:run cases/<slug>/cases.yaml
 E2E_OUTDIR=reports/<slug> pnpm e2e:browser cases/<slug>/browser/<slug>.spec.ts
 
+# Vòng lặp sửa spec — KHÔNG chạy lại cả bộ
+pnpm e2e:retry <slug>            # chỉ chạy lại test đã fail lần trước
+pnpm e2e:retry <slug> TD-07      # chỉ một case
+pnpm e2e:probe cms /settings "getByRole:button:Save" "#total"   # kiểm selector, ~vài giây
+
 # Unit test của chính engine
 pnpm test
 ```
 
 `e2e:all` tự set `E2E_OUTDIR=reports/<slug>`, bỏ qua phần không có (task chỉ có API thì bỏ browser), và ghi đè `reports/<slug>/`.
+
+### Vòng lặp sửa spec — chỗ tốn thời gian nhất
+
+Chi phí lớn nhất không phải một lần chạy, mà là **lặp: chạy cả bộ → phát hiện sai locator → sửa → chạy lại cả bộ**. Hai công cụ cắt vòng lặp này:
+
+| Lệnh | Dùng khi | Chi phí |
+|---|---|---|
+| `pnpm e2e:probe <target> <route> "<selector>"…` | **Trước khi** viết selector vào spec, hoặc khi nghi locator sai | ~vài giây, một lần tải trang |
+| `pnpm e2e:retry <slug> [case]` | Sau khi sửa, kiểm lại **chỉ phần fail** | thời gian của 1–2 test |
+
+`e2e:probe` phân biệt được hai lỗi mà stack trace không nói rõ: **`0 match`** (đoán sai) và **`>1 match`** (mơ hồ — nguyên nhân phổ biến của locator lúc được lúc không). Nó chạy headless trên **bản sao profile đăng nhập**, nên không tranh khoá với bộ test đang chạy và không đụng vào profile thật.
+
+Chỉ chạy `pnpm e2e:all` **một lần ở cuối** để xác nhận không có hồi quy.
 
 Biến môi trường hữu ích:
 

@@ -29,6 +29,14 @@ Sequences that reach a required state — extend this list as you discover more:
 | A company member exists | `POST /company-accounts/:id/members` → accept/approve endpoint to activate |
 | Member removed | `DELETE /company-accounts/:id/members/:memberId` |
 | A second buyer identity | log in the `storefront-2` / `proxy-2` persona slot once (`PERSONA2_PROFILE` in `.env`) |
+| A shipping option exists (BR-52) | `POST /shipping-rates` (full body: scopes + `tiers[]`) → `DELETE /shipping-rates/:id` to clean up |
+| Shipping option active / inactive | `PATCH /shipping-rates/:id/active` `{is_active}` |
+| A duplicated shipping option | `POST /shipping-rates/:id/duplicate` (always created inactive, name + ` (copy of)`) |
+| Shipping-rates empty state | `GET /shipping-rates` → `DELETE` every id (re-seed in teardown) |
+| Resolved shipping rate for a hypothetical cart | `POST /shipping-rates/resolve-for-cart` `{items[{product_id,tags,quantity,weight,price}], customerTags, marketId, customerId}` — pure read, no side effect: covers the whole rate engine without a real cart |
+| `shipping_rate_usage` rows | **no direct endpoint** — only the `orders/paid` webhook writes them, reading the `shipping_rate_id` order attribute. Reaching the "limit hit" branch needs a really-paid order. |
+| **A buyer cart the app can see** | ⚠ **The app does NOT use the Shopify theme cart.** The proxy pages read a **Storefront-API cart** whose id is kept in `localStorage` under `b2bridge-cart-<store>` (`utils/cart.ts#checkExistCart` → `createCartSession`). Adding lines via `/cart/add` or `/cart.js` fills the *theme* cart and the app still shows "Your cart is empty". Reach the real state through the app's own UI: `/apps/b2bridge/quick-order` → "Add to cart" (many demo products are out of stock — take the first enabled button). |
+| Reference data for rate scopes | `GET /customer-groups` (also gives `customer_tags`), `GET /markets`, `GET /products`, `GET /pricing-lists` |
 
 ## Switchable settings
 
@@ -39,6 +47,7 @@ Switching a setting is a `phase: setup` step, never a reason to skip a case. Res
 | **Account type** (`CUSTOMER_GROUP` ↔ `COMPANY_ACCOUNT`) | `GET /general-settings` → `POST /general-settings` with `accountType` |
 | Finance report sections, row counts | same endpoint, field `paymentReportSettings` |
 | Payment terms, credit limits | company-account routes (`/company-accounts/:id`) |
+| **Shipping conflict resolution** (`lowest`/`highest`/`sum`) and **display behavior** (`override`/`coexist`) | `GET /shipping-settings` → `PUT /shipping-settings` — upsert of both fields at once, so read first and post the whole object back. `display_behavior` also pushes the `secret_keys.shipping_display_behavior` metafield to Shopify. Shop-wide → group the cases per mode. |
 
 > ⚠️ **`POST /general-settings` is a full upsert with defaults, not a patch.** Fields you omit are reset — `paymentReportSettings` becomes `null`, `isEnabledOverridePrice` becomes `true`, `isShowWatermark` becomes `false`. Always **read the current settings first, change only the field you need, and post the whole object back**; otherwise a setup step that flips the account type will silently wipe the report configuration other cases depend on.
 

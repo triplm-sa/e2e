@@ -7,6 +7,8 @@
     "test": "vitest run",
     "e2e:doctor": "tsx src/doctor.ts",
     "e2e:all": "tsx src/all.ts",
+    "e2e:retry": "tsx src/retry.ts",
+    "e2e:probe": "tsx src/probe.ts",
     "e2e:run": "tsx src/run.ts",
     "e2e:browser": "playwright test",
     "e2e:login": "tsx src/login.ts"

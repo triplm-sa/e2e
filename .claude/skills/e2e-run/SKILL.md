@@ -17,7 +17,11 @@ Shared conventions and prerequisites: `../_shared/conventions.md`.
 
 1. Run the API layer: `cd e2e && pnpm e2e:run cases/<slug>/cases.yaml`. This produces the API results and `reports/<slug>/report.md`. Note that `e2e:run` executes only `target: api` steps and skips browser steps, which run in the next step.
 
-2. If the task has browser steps: `cd e2e && E2E_OUTDIR=reports/<slug> pnpm e2e:browser cases/<slug>/browser/<slug>.spec.ts`. The target must be logged in — run `/e2e login <target>` first if the session is missing or expired. Screenshots land in `reports/<slug>/artifacts/` and the browsable report in `reports/<slug>/html/index.html`.
+2. If the task has browser steps: `cd e2e && E2E_OUTDIR=reports/<slug> pnpm e2e:browser cases/<slug>/browser/<slug>.spec.ts`.
+
+   The target must be logged in — run `/e2e login <target>` first if the session is missing or expired. Screenshots land in `reports/<slug>/artifacts/` and the browsable report in `reports/<slug>/html/index.html`.
+
+   **While repairing a spec, never re-run the whole suite.** A browser suite costs minutes and the fix under test is usually one case: `pnpm e2e:retry <slug>` re-runs only the last run's failures, and `pnpm e2e:retry <slug> TD-07` runs a single case. Run the full suite once at the end to confirm nothing else regressed. For a locator failure, check the selector with `pnpm e2e:probe` (seconds) before editing and re-running.
 
 3. Read `reports/<slug>/report.json` and the console attachments, then merge the browser results into `report.md`, matching rows by case id. Point the tester at `html/index.html` and the images in `artifacts/`; a trace file needs `pnpm exec playwright show-trace <file>` to open.
 
