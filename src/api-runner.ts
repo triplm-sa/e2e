@@ -63,7 +63,9 @@ export async function runApiStep(
       else captured[name] = v;
     }
 
-    const { passed, detail } = evalExpect(step.expect, res.status, parsed);
+    // `expect` is interpolated too, so a chained flow can assert on what an earlier step created
+    // ("the id returned here IS the rate I just made") instead of only asserting shapes.
+    const { passed, detail } = evalExpect(interpolate(step.expect, vars) as typeof step.expect, res.status, parsed);
     const captureNote = missing.length ? `; missing capture: ${missing.join(", ")}` : "";
     return {
       result: { ...base, passed: passed && missing.length === 0, detail: detail + captureNote },

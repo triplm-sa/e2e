@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 // One-shot re-test for one or more tasks: doctor → API (e2e:run) → browser (playwright).
@@ -37,6 +37,10 @@ for (const slug of slugs) {
 
   if (existsSync(resolve(process.cwd(), spec))) {
     console.log(`\n--- ${slug}: browser (${spec}) ---`);
+    // A full run supersedes every partial re-run, and its own report.json covers all cases, so the
+    // per-retry folders left by `pnpm e2e:retry` are cleared. Leaving them would invite reading a
+    // stale partial HTML as though it described the whole task.
+    rmSync(resolve(process.cwd(), `${outdir}/retry`), { recursive: true, force: true });
     if (!run("npx", ["playwright", "test", spec], { E2E_OUTDIR: outdir })) anyFail = true;
   } else {
     console.log(`--- ${slug}: skip browser — no ${spec} ---`);

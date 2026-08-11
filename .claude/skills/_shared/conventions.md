@@ -9,7 +9,7 @@ One task = one folder `cases/<slug>/`; run output goes to `reports/<slug>/`. `<s
 ## Language policy
 
 - **These instruction files are in English.** Skills, commands and references.
-- **Every generated artifact is written in Vietnamese** — the tester audience is Vietnamese. This applies to `analysis.md`, `plan.md`, `coverage.md`, `data.md`, `recon.md`, `task.md`, `report.md`, `report.csv`, and any summary shown in chat.
+- **Every generated artifact is written in Vietnamese** — the tester audience is Vietnamese. This applies to `analysis.md`, `plan.md`, `recon.md`, `task.md`, `report.md`, `report.csv`, and any summary shown in chat.
 - Inside those Vietnamese documents, keep identifiers verbatim: file paths, commands, code symbols, HTTP methods, config keys.
 - **Generated spec code** (`browser/<slug>.spec.ts`) uses **English** comments and precondition messages. Two exceptions: the `test("<id> · <scenario>")` title mirrors the plan case so the HTML report stays readable for the tester, and `// AC:` quotes are copied verbatim from the ticket.
 
@@ -30,7 +30,7 @@ Console output is a **weak signal**. It may never be the sole basis for any conc
 
 ## Task folder layout
 
-Input — `cases/<slug>/`: `analysis.md` (analyze) · `recon.md` (recon) · `plan.md` (gen, human-readable) · `coverage.md` (gen, AC matrix) · `data.md` (data) · `cases.yaml` (machine) · `browser/<slug>.spec.ts` · `task.md` (full-flow progress).
+Input — `cases/<slug>/`: `analysis.md` (analyze, four tables) · `recon.md` (recon, selectors plus real data) · `plan.md` (gen, human-readable; carries the coverage summary line and the `Dữ liệu` column) · `cases.yaml` (machine) · `browser/<slug>.spec.ts` · `task.md` (full-flow progress).
 
 Output — `reports/<slug>/`: `report.md` · `report.csv` · `report.json` · `html/index.html` · `artifacts/`.
 
@@ -62,13 +62,13 @@ Split the cases into groups and declare each one:
 
 ```ts
 // Independent: these only read, or only touch data they created under their own name.
-test.describe("wizard validation", () => {
+test.describe("<namespaced or read-only group>", () => {
   test.describe.configure({ mode: "parallel" });
   test("TD-60 · …", async ({ openTarget }) => { /* … */ });
 });
 
 // Shared state: anything that writes a shop-wide setting, or asserts a store-wide total.
-test.describe("shipping rates", () => {
+test.describe("<shop-wide setting group>", () => {
   test.describe.configure({ mode: "serial" });
   test("TD-54 · …", async ({ openTarget }) => { /* … */ });
 });

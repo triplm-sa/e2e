@@ -15,7 +15,7 @@
 #   Có sẵn 1 slot, TÊN GENERIC (không gắn tên feature/project) — profile lấy qua .env,
 #   không cần sửa file này khi đổi persona: PERSONA2_PROFILE=.auth/persona2-profile (mặc định nếu bỏ trống).
 #   Login: `pnpm e2e:login storefront-2` (hoặc proxy-2).
-#   Ghi chú ý nghĩa persona nào ứng với slot nào ở cases/<slug>/data.md — KHÔNG ở file này.
+#   Ghi chú ý nghĩa persona nào ứng với slot nào ở cột "Dữ liệu" trong cases/<slug>/plan.md — KHÔNG ở file này.
 #   Cần thêm persona thứ 3+ → thêm khối target + biến .env tương tự (PERSONA3_PROFILE...) khi cần, không dựng sẵn.
 # =============================================================================
 

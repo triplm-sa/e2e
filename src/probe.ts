@@ -66,6 +66,24 @@ function build(scope: Page | Frame, selector: string) {
   }
 }
 
+// An embedded Shopify app finishes booting long after the outer page fires `load`
+// (Admin + App Bridge + the app's own first fetch — measured at 7-20s). Counting
+// straight away reports `0 match` for every selector, which reads as "all wrong"
+// when the page simply had not rendered yet. So poll until the first selector
+// matches, then report. A page where nothing ever matches still costs only this
+// bounded wait, and its report is then genuine.
+const warmupMs = Number(process.env.E2E_PROBE_WARMUP_MS ?? 25_000);
+const deadline = Date.now() + warmupMs;
+while (Date.now() < deadline) {
+  let anyMatch = false;
+  for (const selector of selectors) {
+    const count = await build(scope, selector).count().catch(() => 0);
+    if (count > 0) { anyMatch = true; break; }
+  }
+  if (anyMatch) break;
+  await new Promise((r) => setTimeout(r, 1_000));
+}
+
 console.log(`\n${url}\n`);
 let bad = 0;
 for (const selector of selectors) {

@@ -9,7 +9,7 @@ Consolidate a task's latest results and export a machine-readable summary.
 
 Shared conventions: `../_shared/conventions.md`.
 
-**Input:** `<slug>`, with `reports/<slug>/report.json` present. If it is missing, run `/e2e run` first.
+**Input:** `<slug>`, already run via `/e2e run`. `reports/<slug>/report.json` is present only when the task has browser steps (it is emitted by Playwright's reporters in that stage); an API-only task never produces one — its `report.md`/`report.csv` from `pnpm e2e:run` are already the complete result, so read those instead (see step 1). If neither exists at all, run `/e2e run` first.
 
 **Output:** the analysis you add to `reports/<slug>/report.md` — **written in Vietnamese** (see the language policy in conventions).
 
@@ -19,13 +19,15 @@ Shared conventions: `../_shared/conventions.md`.
 
 The reader wants two things: **which bugs exist**, and **which cases passed, failed or were not verified**. Write only that. The engine already produced the skeleton with numbered sections — fill section 1 and leave the rest as generated.
 
-**Do not add sections about your own process.** These are noise and must not appear: what you automated during this run, how many records you created through the API, incidents while re-running, spec bugs you fixed along the way, state pollution you cleaned up, or which cases remain un-automated. That information belongs elsewhere — coverage and automatability in `plan.md`, data preparation in `data.md`, chains in `project-notes.md`.
+**Check the HTML is current before calling the report final.** When `reports/<slug>/retry/` exists and is newer than `reports/<slug>/html/index.html`, the HTML predates the last repairs and does not show them: run `pnpm e2e:all <slug>` first, which regenerates the HTML over the whole suite and clears the retry folders. Never point the tester at an HTML report older than the numbers quoted beside it.
+
+**Do not add sections about your own process.** These are noise and must not appear: what you automated during this run, how many records you created through the API, incidents while re-running, spec bugs you fixed along the way, state pollution you cleaned up, or which cases remain un-automated. That information belongs elsewhere — coverage, automatability and data preparation in `plan.md`, chains in `project-notes.md`.
 
 If a run-time incident changes what the results *mean* — for example leftover state made a case fail — say it in one line inside the affected bug or case entry, not as its own section.
 
 ## Steps
 
-1. Read `reports/<slug>/report.json`, plus the existing `report.md` when it already carries content.
+1. Read `reports/<slug>/report.json` when present (task has browser steps); otherwise read `reports/<slug>/report.csv` and `report.md` (API-only task). Also read the existing `report.md` when it already carries content.
 
 2. **Fill section 1 — Bug.** One block per bug, using the template the engine left in place. Cover both **newly appeared bugs** and **previously reported bugs re-verified in this run** (fixed, or still reproducing). Every block needs:
    - **Hiện tượng** — what was actually observed, quoting the value or text seen.

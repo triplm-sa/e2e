@@ -1,6 +1,11 @@
 # Field-type validation checklist
 
-Use when the feature under test has a form or input fields. Give **each field its own cases** — never merge several fields into one case. Minimum per field: **1 positive + at least 2 negative/boundary** cases.
+Use when the feature under test has a form or input fields. **How much to spend on a field depends on the risk of the AC it belongs to** — this checklist is a menu, not a quota.
+
+- **Field belonging to a High-risk AC** (money, permissions, data loss): give that field its own cases, at least **1 positive + 2 negative/boundary**.
+- **Field belonging to a Medium or Low AC**: **fold several fields into one case**, taking **one representative boundary row** per field — the row that breaks the business rule most clearly, not the whole group. A single case that fills four fields wrongly and asserts four error messages is correct, not a loophole.
+
+This section used to demand 1+2 for **every** field, and that was one of the multipliers that pushed a recent large feature past a hundred cases. Case count is not a measure of quality; coverage of the High-risk ACs is.
 
 Identify the type of every field on the UI or API payload, then take the matching group below. Only include rows that are meaningful for the feature; record a reason for any row you deliberately skip.
 
@@ -20,4 +25,4 @@ Identify the type of every field on the UI or API payload, then take the matchin
 - **Multi-select / Tag input** — tag count limit; duplicate tags; removal via backspace and the X control; tags with unusual characters.
 - **Range slider / Stepper** — min & max; step increment violations; manual entry versus dragging.
 
-**Applying this to the plan:** in the invalid-input group, list every field, pick the matching checklist rows, and turn each row into one case with its own id. Record a reason for every row intentionally left out.
+**Applying this to the plan:** list every field along with the risk of its AC. For a High field, turn each matching checklist row into its own case. For a Medium or Low field, pick one representative row and fold it into a shared case. Record a reason only for a **High** field's row left out — Medium and Low rows are expected to be folded, so they need no per-row justification.

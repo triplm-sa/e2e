@@ -1,6 +1,6 @@
 ---
-description: Full-lifecycle E2E QA — invoke a single stage skill (analyze, recon, gen, data, run, flaky, report) or save a login session. For the whole chain, use /e2e-full.
-argument-hint: "analyze|recon|gen|data|run|flaky|report <slug|--jira KEY> | login [target]"
+description: Full-lifecycle E2E QA — invoke a single stage skill (analyze, recon, gen, run, flaky, report) or save a login session. For the whole chain, use /e2e-full.
+argument-hint: "analyze|recon|gen|run|flaky|report <slug|--jira KEY> | login [target]"
 ---
 
 The user invoked `/e2e $ARGUMENTS`. This command is a dispatcher: it runs **one stage skill** based on the first subcommand. Load the matching skill with the Skill tool, pass the remaining arguments to it, and follow its instructions.
@@ -10,7 +10,6 @@ The user invoked `/e2e $ARGUMENTS`. This command is a dispatcher: it runs **one 
 | `analyze [feature] [--jira KEY]` | `e2e-analyze` |
 | `recon <slug>` | `e2e-recon` |
 | `gen [feature] [--jira KEY] [--design f.html]` | `e2e-gen` |
-| `data <slug>` | `e2e-data` |
 | `run <slug>` | `e2e-run` |
 | `flaky <slug> [fix]` | `e2e-flaky` |
 | `report <slug>` | `e2e-report` |
