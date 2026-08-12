@@ -16,8 +16,7 @@ const casePath = resolve(cwd, caseArg);
 const configPath = resolve(cwd, process.env.E2E_CONFIG ?? "e2e.config.yaml");
 const configDir = dirname(configPath);
 const cfg = loadConfig(configPath);
-const raw = parse(readFileSync(casePath, "utf8"));
-const cf: CaseFile = validateCaseFile(raw);
+const cf: CaseFile = validateCaseFile(parse(readFileSync(casePath, "utf8")));
 
 const results: StepResult[] = [];
 const vars: Record<string, unknown> = {};
@@ -28,12 +27,8 @@ const teardown = indexed.filter(({ step }) => phaseOf(step) === "teardown");
 
 async function execute({ step, index }: { step: Step; index: number }): Promise<StepResult> {
   const target = resolveTarget(cfg, step.target);
-  if (!isApiStep(step)) {
-    throw new Error(`configuration error: browser step ${step.case ?? index} belongs in Playwright, not src/run.ts; run the generated browser spec instead`);
-  }
-  if (target.kind !== "api") {
-    throw new Error(`configuration error: API step ${step.case ?? index} targets '${step.target}', whose kind is '${target.kind}'`);
-  }
+  if (!isApiStep(step)) throw new Error(`configuration error: browser step ${step.case ?? index} belongs in Playwright, not src/run.ts; run the generated browser spec instead`);
+  if (target.kind !== "api") throw new Error(`configuration error: API step ${step.case ?? index} targets '${step.target}', whose kind is '${target.kind}'`);
   const { result, captured } = await runApiStep(step, target, configDir, cf.id, index, vars);
   Object.assign(vars, captured);
   return { ...result, phase: phaseOf(step), risk: step.risk };
@@ -59,15 +54,12 @@ for (const item of tests) {
   if (abortedBy) { results.push(skip(item, `skipped — precondition ${abortedBy} failed`)); continue; }
   results.push(await execute(item));
 }
-// Teardown always runs, even after setup/test failure. A teardown failure is still a real failure.
 for (const item of teardown) {
-  try { results.push(await execute(item)); }
-  catch (err) {
-    results.push({
-      caseId: cf.id, case: item.step.case, index: item.index, target: item.step.target, kind: "api",
-      phase: "teardown", risk: item.step.risk, action: item.step.action ?? `${item.step.request.method} ${item.step.request.path}`,
-      passed: false, detail: (err as Error).message,
-    });
+  try {
+    results.push(await execute(item));
+  } catch (err) {
+    const action = isApiStep(item.step) ? item.step.action ?? `${item.step.request.method} ${item.step.request.path}` : item.step.action;
+    results.push({ caseId: cf.id, case: item.step.case, index: item.index, target: item.step.target, kind: "api", phase: "teardown", risk: item.step.risk, action, passed: false, detail: (err as Error).message });
   }
 }
 
