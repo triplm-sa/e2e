@@ -5,7 +5,7 @@ This file is the small, always-relevant contract. **Do not load every reference 
 ## Artifact and language rules
 
 - One task = `cases/<slug>/`; run output = `reports/<slug>/`.
-- Keep case IDs identical across analysis → plan → coverage → yaml → spec → report.
+- Keep case IDs identical across analysis → plan → coverage → coverage.json → yaml → spec → report.
 - Generated artifacts and tester-facing summaries are **Vietnamese**.
 - Generated spec code/comments are **English**, except the test title mirrors the plan scenario and `// AC:` quotes the ticket verbatim.
 - Never mark workflow progress complete until the expected artifact exists.
@@ -46,13 +46,13 @@ Store/app handle and target-specific details come from `.env`, `e2e.config.yaml`
 
 ## Task layout
 
-Input — `cases/<slug>/`: `analysis.md`, `recon.md`, `plan.md`, `coverage.md`, `data.md`, `cases.yaml`, `browser/<slug>.spec.ts`, `task.md`.
+Input — `cases/<slug>/`: `analysis.md`, `recon.md`, `plan.md`, `coverage.md`, `coverage.json`, `data.md`, `cases.yaml`, `browser/<slug>.spec.ts`, `task.md`.
 
-Output — `reports/<slug>/`: `report.md`, `report.csv`, `report.json`, `html/index.html`, `artifacts/`.
+Output — `reports/<slug>/`: `report.md`, `report.csv`, `report.json`, `html/index.html`, `artifacts/`, `retry/`.
 
 ## Prerequisites
 
-- API reachable through the configured health endpoint.
+- API reachable through the configured health endpoint when an API target is used.
 - Browser targets logged in with a valid Chrome profile when browser tests are required.
 - Dependencies installed in `e2e/`.
 - `pnpm e2e:doctor` should be used as the project-level preflight check when available.
