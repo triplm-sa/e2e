@@ -14,10 +14,13 @@ function run(cmd: string, args: string[], env: Record<string, string> = {}): boo
   catch { return false; }
 }
 
-let anyFail = false;
 console.log("\n########## doctor ##########");
-if (!run("tsx", ["src/doctor.ts"])) anyFail = true;
+if (!run("tsx", ["src/doctor.ts"])) {
+  console.error("❌ Preflight failed. No E2E task was executed.");
+  process.exit(1);
+}
 
+let anyFail = false;
 for (const slug of slugs) {
   console.log(`\n########## ${slug} ##########`);
   const root = process.cwd();
@@ -26,9 +29,9 @@ for (const slug of slugs) {
   const outdir = resolve(root, `reports/${slug}`);
   const apiReportPath = resolve(outdir, "api-report.json");
   const browserReportPath = resolve(outdir, "browser-report.json");
-
   const hasApi = existsSync(yamlPath);
   const hasBrowser = existsSync(spec);
+
   if (!hasApi && !hasBrowser) {
     console.error(`❌ ${slug}: no runnable artifact found (expected ${yamlPath} and/or ${spec})`);
     anyFail = true;
@@ -44,13 +47,8 @@ for (const slug of slugs) {
     console.log(`\n--- ${slug}: browser ---`);
     if (!run("npx", ["playwright", "test", spec], { E2E_OUTDIR: outdir })) anyFail = true;
     const playwrightJson = resolve(outdir, "report.json");
-    if (existsSync(playwrightJson)) {
-      // Playwright owns its raw report; rename the semantic boundary so the final report is never overwritten.
-      writeFileSync(browserReportPath, readFileSync(playwrightJson));
-    } else {
-      console.error(`❌ ${slug}: browser run completed without ${playwrightJson}`);
-      anyFail = true;
-    }
+    if (existsSync(playwrightJson)) writeFileSync(browserReportPath, readFileSync(playwrightJson));
+    else { console.error(`❌ ${slug}: browser run completed without ${playwrightJson}`); anyFail = true; }
   }
 
   let feature = slug;
@@ -60,7 +58,7 @@ for (const slug of slugs) {
     feature = api.feature || feature;
     apiResults = api.results;
   } else if (hasApi) {
-    try { feature = (parse(readFileSync(yamlPath, "utf8")) as CaseFile).feature || feature; } catch { /* validation failure already surfaced by e2e:run */ }
+    try { feature = (parse(readFileSync(yamlPath, "utf8")) as CaseFile).feature || feature; } catch { /* validation error already surfaced */ }
   }
   const browserResults = existsSync(browserReportPath) ? parsePlaywrightReport(browserReportPath, slug) : [];
   const merged = mergeExecutionReports(feature, apiResults, browserResults);
@@ -68,7 +66,7 @@ for (const slug of slugs) {
   writeFileSync(resolve(outdir, "report.generated.md"), renderReport(feature, merged.results));
   writeFileSync(resolve(outdir, "report.csv"), renderCsv(merged.results));
 
-  // Never overwrite a human-maintained report.md. Create a seed only for a brand-new task.
+  // Never overwrite a human-maintained report.md. Create it only for a brand-new task.
   const humanReport = resolve(outdir, "report.md");
   if (!existsSync(humanReport)) writeFileSync(humanReport, renderReport(feature, merged.results));
   console.log(`>>> ${slug}: canonical report → ${outdir}/report.json`);
