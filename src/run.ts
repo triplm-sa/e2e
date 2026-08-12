@@ -27,39 +27,39 @@ const teardown = indexed.filter(({ step }) => phaseOf(step) === "teardown");
 
 async function execute({ step, index }: { step: Step; index: number }): Promise<StepResult> {
   const target = resolveTarget(cfg, step.target);
-  if (!isApiStep(step)) throw new Error(`configuration error: browser step ${step.case ?? index} belongs in Playwright, not src/run.ts; run the generated browser spec instead`);
-  if (target.kind !== "api") throw new Error(`configuration error: API step ${step.case ?? index} targets '${step.target}', whose kind is '${target.kind}'`);
+  if (!isApiStep(step)) throw new Error(`browser step ${step.case ?? index} belongs in Playwright, not src/run.ts`);
+  if (target.kind !== "api") throw new Error(`API step ${step.case ?? index} targets '${step.target}', whose kind is '${target.kind}'`);
   const { result, captured } = await runApiStep(step, target, configDir, cf.id, index, vars);
   Object.assign(vars, captured);
   return { ...result, phase: phaseOf(step), risk: step.risk };
 }
 
 function skip({ step, index }: { step: Step; index: number }, reason: string): StepResult {
-  return {
-    caseId: cf.id, case: step.case, index, target: step.target,
-    kind: isApiStep(step) ? "api" : "browser", phase: phaseOf(step), risk: step.risk,
-    action: isApiStep(step) ? step.action ?? `${step.request.method} ${step.request.path}` : step.action,
-    passed: false, skipped: true, detail: reason,
-  };
+  return { caseId: cf.id, case: step.case, index, target: step.target, kind: isApiStep(step) ? "api" : "browser", phase: phaseOf(step), risk: step.risk, action: isApiStep(step) ? step.action ?? `${step.request.method} ${step.request.path}` : step.action, passed: false, skipped: true, detail: reason };
+}
+
+function configFailure({ step, index }: { step: Step; index: number }, err: unknown): StepResult {
+  return { caseId: cf.id, case: step.case, index, target: step.target, kind: isApiStep(step) ? "api" : "browser", phase: phaseOf(step), risk: step.risk, action: isApiStep(step) ? step.action ?? `${step.request.method} ${step.request.path}` : step.action, passed: false, failureType: "configuration", detail: `configuration error: ${(err as Error).message}` };
 }
 
 let abortedBy: string | null = null;
 for (const item of setup) {
   if (abortedBy) { results.push(skip(item, `skipped — precondition ${abortedBy} failed`)); continue; }
-  const result = await execute(item);
+  let result: StepResult;
+  try { result = await execute(item); } catch (err) { result = configFailure(item, err); }
   results.push(result);
   if (!result.passed) abortedBy = result.case ?? `step ${result.index}`;
 }
 for (const item of tests) {
   if (abortedBy) { results.push(skip(item, `skipped — precondition ${abortedBy} failed`)); continue; }
-  results.push(await execute(item));
+  try { results.push(await execute(item)); } catch (err) { results.push(configFailure(item, err)); }
 }
 for (const item of teardown) {
   try {
     results.push(await execute(item));
   } catch (err) {
-    const action = isApiStep(item.step) ? item.step.action ?? `${item.step.request.method} ${item.step.request.path}` : item.step.action;
-    results.push({ caseId: cf.id, case: item.step.case, index: item.index, target: item.step.target, kind: "api", phase: "teardown", risk: item.step.risk, action, passed: false, detail: (err as Error).message });
+    const failure = configFailure(item, err);
+    results.push({ ...failure, failureType: "teardown", phase: "teardown" });
   }
 }
 
@@ -71,7 +71,5 @@ writeJson(resolve(reportDir, "api-report.json"), report);
 
 const failed = results.some((r) => !r.passed && !r.skipped);
 const testResults = results.filter((r) => phaseOf(r) === "test");
-console.log(`API steps: ${testResults.filter((r) => r.passed).length}/${testResults.length} passed` +
-  `${results.some((r) => r.skipped) ? ` · ${results.filter((r) => r.skipped).length} skipped` : ""}` +
-  `${abortedBy ? ` · aborted by failed setup (${abortedBy})` : ""} → ${reportDir}/api-report.json`);
+console.log(`API steps: ${testResults.filter((r) => r.passed).length}/${testResults.length} passed` + `${results.some((r) => r.skipped) ? ` · ${results.filter((r) => r.skipped).length} skipped` : ""}` + `${abortedBy ? ` · aborted by failed setup (${abortedBy})` : ""} → ${reportDir}/api-report.json`);
 process.exit(failed ? 1 : 0);
