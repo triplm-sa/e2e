@@ -15,6 +15,8 @@ Shared conventions and prerequisites: `../_shared/conventions.md`.
 
 ## Steps
 
+0. **Gate before running anything:** `pnpm e2e:verify <slug>`. If it exits non-zero, some automatable case in `plan.md` was never compiled into `cases.yaml` (or, for a browser case, never got a matching `test()` in the spec) — fix that first. Running `e2e:run`/`e2e:browser` over an incomplete compile just reproduces the gap silently; this is the check that catches it instead.
+
 1. Run the API layer: `cd e2e && pnpm e2e:run cases/<slug>/cases.yaml`. This produces the API results and `reports/<slug>/report.md`. Note that `e2e:run` executes only `target: api` steps and skips browser steps, which run in the next step.
 
 2. If the task has browser steps: `cd e2e && E2E_OUTDIR=reports/<slug> pnpm e2e:browser cases/<slug>/browser/<slug>.spec.ts`.

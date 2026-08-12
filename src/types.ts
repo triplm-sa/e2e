@@ -94,6 +94,15 @@ export interface ApiStep {
    * the type is preserved (number/bool/object); interpolation within a string is converted to text.
    */
   capture?: Record<string, string>;
+  /**
+   * Explicit opt-in to run this `test`-phase step concurrently with adjacent steps sharing the same
+   * group name. Only `e2e-gen` should set this, and only after checking the step neither reads a
+   * `${var}` captured by another step in the group nor captures a var name another step in the
+   * group also captures — the runner does not infer independence, because guessing wrong would
+   * silently corrupt a chained business flow. Ignored on `setup`/`teardown` steps (their ordering
+   * guarantees stay sequential).
+   */
+  parallelGroup?: string;
 }
 
 export interface BrowserStep {

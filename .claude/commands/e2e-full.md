@@ -11,7 +11,8 @@ The user invoked `/e2e-full $ARGUMENTS`. This command is an **orchestrator**: it
 
 ## Execution rules
 
-- **Stop to ask the tester in only two situations:** the **plan approval gate** after `e2e-gen`, and a genuine **business-rule contradiction**. Otherwise proceed autonomously — do not interrupt with minor questions.
+- **No stage, checklist item, or coverage dimension may be silently skipped.** Every skill in the chain (`e2e-analyze`'s AC extraction, `e2e-gen`'s dimension enumeration and completeness-critic loop, `field-validation.md`/`api-security.md`/`non-functional.md` checklists, `e2e-run`'s API+browser layers, `e2e-flaky`'s bounded retries) runs in full for every task. If a step genuinely does not apply (e.g. no browser target, no forms on the page), record **why** in the relevant `.md` file — an omission with no written reason is treated as a defect in the run, not a shortcut.
+- **Stop to ask the tester in only two situations:** the **plan approval gate** after `e2e-gen`, and a genuine **business-rule contradiction**. Otherwise proceed autonomously — do not interrupt with minor questions. If the tester explicitly asks to skip the approval gate or another checkpoint, quote that request verbatim in `plan.md`/`task.md` so the skip is traceable — never skip a checkpoint on your own judgment.
 - **Bounded auto-healing:** the `e2e-flaky` stage fixes and re-verifies for at most **five rounds** without asking again.
 - **Progress artifact:** maintain `cases/<slug>/task.md` — a checkbox per stage plus a one-line result — so the tester can follow along.
 - **Missing input:** ask before starting; the run needs `--jira KEY` or a feature description.

@@ -28,6 +28,17 @@ Console output is a **weak signal**. It may never be the sole basis for any conc
 - The same rule applies in reverse: do not dismiss a real failure as noise without checking its origin tag.
 - Targets are declared in `e2e.config.yaml` (`kind: api|browser`). Never hard-code a fixed set of layers.
 
+## Case scope — business logic/flow vs. pure display
+
+Two different things get called "a case," and they are **not** held to the same coverage bar:
+
+- **Business logic and flow** — every enum/config value, every state transition, every validation rule, every calculation, every permission/ownership check. These are **all High priority by default** and **must each get their own case** — one value or one rule per case id, never merged, never sampled. This is where 100% coverage is measured: "config has 4 options" means 4 cases with their own assertion, not 1 case that mentions all 4 in a comment.
+- **Pure visual/design display** — label wording, spacing, icon presence, colours, whether a static banner renders — where the *only* thing being checked is "does the screen look like the design," with no computed value and no business rule behind it. These **may be merged into one case** that walks the screen and asserts several elements at once, because a design mismatch is one class of bug regardless of which element shows it.
+
+**The test:** does failing this assertion mean a wrong business decision was made (wrong price, wrong permission, wrong state), or does it mean a pixel/label is off? The former is never merged; the latter can be.
+
+When in doubt, treat it as logic — merging a case that turns out to hide a business rule is the more expensive mistake. Record the merge decision in `coverage.md` so the tester can see which display checks were grouped and why.
+
 ## Task folder layout
 
 Input — `cases/<slug>/`: `analysis.md` (analyze) · `recon.md` (recon) · `plan.md` (gen, human-readable) · `coverage.md` (gen, AC matrix) · `data.md` (data) · `cases.yaml` (machine) · `browser/<slug>.spec.ts` · `task.md` (full-flow progress).
@@ -78,14 +89,16 @@ A case belongs in a **serial** group when it:
 
 - writes a **shop-wide setting** (another test would see the flipped value mid-run);
 - **deletes by a shared prefix** or otherwise clears a collection another test is using;
-- asserts a **store-wide total** — an exact count only holds while nothing else is creating records.
+- asserts a **store-wide total that the API cannot filter by namespace** — see below before accepting this.
 
-Two habits make far more cases parallel-safe, and are worth applying while the spec is being written:
+**Two habits are mandatory while writing the spec, not optional tuning — apply them to every task:**
 
-1. **Namespace created data per worker.** Name fixtures with the worker index, e.g. `` `E2E ${slug} w${test.info().workerIndex}-…` ``, and clean up only what matches that name. A cleanup that deletes every record with a shared prefix destroys other workers' fixtures.
-2. **Scope assertions to your own data.** Assert the count of records matching your namespace, not the total in the store.
+1. **Namespace every record the spec creates.** Tag or name fixtures with a run-scoped id, e.g. `` `E2E ${slug} w${test.info().workerIndex}-…` ``, and clean up only what matches that name. A cleanup that deletes every record with a shared prefix destroys other workers' fixtures.
+2. **Scope every count/total assertion to that namespace, not to the store.** Before writing a case that asserts "list shows N" or "empty state" against the *whole* store:
+   - Check whether the read endpoint accepts a filter (tag, prefix, customer group, date range). If it does, **query filtered by the run's namespace** and assert on that — this is the default, and it keeps the case parallel-safe.
+   - Only when the AC is itself about a genuinely global state (e.g. "the merchant has zero options in the whole store," where a filtered count would not test the real AC) is a store-wide assertion correct. In that case put the case in the **serial** group and write one line in `plan.md` explaining why namespacing does not apply — do not silently default to serial because it is easier.
 
-Read-only cases that never save are parallel-safe as written.
+Read-only cases that never save are parallel-safe as written. Downgrading a case set to `serial` without recording which rule above applies is a plan defect, not a style choice — `e2e-gen` must justify it the same way it justifies a manual case in `automation-ladder.md`.
 
 ### What a test actually costs — reach preconditions through the API
 

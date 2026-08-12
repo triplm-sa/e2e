@@ -51,13 +51,39 @@ function skip({ step, index }: { step: Step; index: number }, reason: string): S
   };
 }
 
+/** `parallelGroup` only ever applies to `test`-phase API steps — see the field doc in types.ts. */
+function groupKey(entry: { step: Step; index: number }): string | undefined {
+  if (phaseOf(entry.step) !== "test") return undefined;
+  return (entry.step as { parallelGroup?: string }).parallelGroup;
+}
+
 let abortedBy: string | null = null;
-for (let i = 0; i < main.length; i++) {
-  if (abortedBy) { results.push(skip(main[i], `skipped — precondition ${abortedBy} failed`)); continue; }
-  const result = await execute(main[i]);
-  results.push(result);
-  // A failing setup step invalidates everything after it: report those as skipped, not failed.
-  if (!result.passed && phaseOf(main[i].step) === "setup") abortedBy = result.case ?? `step ${result.index}`;
+for (let i = 0; i < main.length; ) {
+  if (abortedBy) { results.push(skip(main[i], `skipped — precondition ${abortedBy} failed`)); i++; continue; }
+
+  const key = groupKey(main[i]);
+  if (key === undefined) {
+    // No opt-in: run exactly as before, one step at a time, in declared order.
+    const result = await execute(main[i]);
+    results.push(result);
+    if (!result.passed && phaseOf(main[i].step) === "setup") abortedBy = result.case ?? `step ${result.index}`;
+    i++;
+    continue;
+  }
+
+  // Batch every contiguous step sharing this group name and run them concurrently.
+  // Steps outside the batch still wait for it — grouping never reorders across the batch boundary.
+  let j = i;
+  while (j < main.length && groupKey(main[j]) === key) j++;
+  const batch = main.slice(i, j);
+  const batchResults = await Promise.all(batch.map(execute));
+  for (const [idx, entry] of batch.entries()) {
+    results.push(batchResults[idx]);
+    // A setup step never carries parallelGroup (see groupKey), so this branch is unreachable for
+    // this batch; kept only so the abort check reads the same as the sequential path above.
+    if (!batchResults[idx].passed && phaseOf(entry.step) === "setup") abortedBy = batchResults[idx].case ?? `step ${entry.index}`;
+  }
+  i = j;
 }
 // Cleanup is best effort and must run even when the tests were aborted.
 for (const t of teardown) results.push(await execute(t));
