@@ -25,9 +25,17 @@ description: Consolidate the latest run, coverage validation and flaky classific
    - Nghi ngờ nguyên nhân — `file:line` only when evidence supports it;
    - Trạng thái — new / fixed and verified / still reproducing.
 4. Do not report `[NEEDS-SELECTOR-REVIEW]`, flaky, or setup failures as feature bugs. Environment claims require direct verification evidence.
-5. Leave engine-generated result sections intact except for necessary classification updates. Add the HTML report link.
-6. Fill the CSV `Type` classification only when the engine leaves it blank and the team needs it; do not reformat other generated columns.
-7. Summarise in chat: execution profile (FAST/STANDARD/HEAVY), AC/dimension/branch coverage, new vs re-verified bugs, pass/fail/not-verified totals, and developer-vs-spec actions.
+5. **Preserve engine-generated artifacts mechanically.** If `report.generated.md` already contains the generated result tables/sections, do not manually retype, summarise, or reconstruct them. Use a shell/file operation (for example `cp`, `cat`, or a project script) to carry generated content into `report.md`, then edit only the tester-authored semantic sections that actually need changes. Never replace a large generated table with a hand-written equivalent.
+6. Leave engine-generated result sections intact except for necessary classification updates. Add the HTML report link.
+7. Fill the CSV `Type` classification only when the engine leaves it blank and the team needs it; do not reformat other generated columns.
+8. Summarise in chat: execution profile (FAST/STANDARD/HEAVY), AC/dimension/branch coverage, new vs re-verified bugs, pass/fail/not-verified totals, and developer-vs-spec actions.
+
+## Artifact handling rules
+
+- Treat machine-generated artifacts as source data, not prose to reproduce.
+- Prefer machine-to-machine transfer: copy/transform files with shell or project tooling instead of sending large generated content through the model and writing it back verbatim.
+- When a generated section is correct, do not touch it merely to make the report "cleaner".
+- If a generated section needs a semantic correction, make the smallest possible edit around the affected classification rather than rewriting the whole section.
 
 ## Boundary
 
