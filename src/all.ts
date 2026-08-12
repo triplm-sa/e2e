@@ -14,8 +14,28 @@ function run(cmd: string, args: string[], env: Record<string, string> = {}): boo
   catch { return false; }
 }
 
+function selectedTargets(): string[] {
+  const found = new Set<string>();
+  for (const slug of slugs) {
+    const yamlPath = resolve(process.cwd(), `cases/${slug}/cases.yaml`);
+    const specPath = resolve(process.cwd(), `cases/${slug}/browser/${slug}.spec.ts`);
+    if (existsSync(yamlPath)) {
+      try {
+        for (const target of ((parse(readFileSync(yamlPath, "utf8")) as Partial<CaseFile>).targets ?? [])) found.add(target);
+      } catch { /* the run will report the actual validation error */ }
+    }
+    if (existsSync(specPath)) {
+      const text = readFileSync(specPath, "utf8");
+      for (const match of text.matchAll(/openTarget\(\s*["'`]([^"'`]+)["'`]\s*\)/g)) found.add(match[1]);
+    }
+  }
+  return [...found];
+}
+
+const targets = selectedTargets();
 console.log("\n########## doctor ##########");
-if (!run("tsx", ["src/doctor.ts"])) {
+const doctorEnv = targets.length ? { E2E_DOCTOR_TARGETS: targets.join(",") } : {};
+if (!run("tsx", ["src/doctor.ts"], doctorEnv)) {
   console.error("❌ Preflight failed. No E2E task was executed.");
   process.exit(1);
 }
@@ -66,7 +86,6 @@ for (const slug of slugs) {
   writeFileSync(resolve(outdir, "report.generated.md"), renderReport(feature, merged.results));
   writeFileSync(resolve(outdir, "report.csv"), renderCsv(merged.results));
 
-  // Never overwrite a human-maintained report.md. Create it only for a brand-new task.
   const humanReport = resolve(outdir, "report.md");
   if (!existsSync(humanReport)) writeFileSync(humanReport, renderReport(feature, merged.results));
   console.log(`>>> ${slug}: canonical report → ${outdir}/report.json`);
