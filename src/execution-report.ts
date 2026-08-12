@@ -51,7 +51,9 @@ function collectSpecs(suites: PlaywrightSuite[] = [], parentTitle = ""):
 }
 
 function extractCaseId(title: string, fallback: string): string {
-  return title.match(/\b[A-Z][A-Z0-9_]*-\d+\b/)?.[0] ?? fallback;
+  // Trailing letter suffix (e.g. "TD-02b") covers lettered sub-case ids; still requires a \b after so a
+  // longer alphanumeric tail (e.g. "TD-02banana") is not mistaken for one.
+  return title.match(/\b[A-Z][A-Z0-9_]*-\d+[a-z]?\b/)?.[0] ?? fallback;
 }
 
 export function parsePlaywrightReport(path: string, defaultCaseId = "BROWSER"): StepResult[] {
@@ -69,8 +71,13 @@ export function parsePlaywrightReport(path: string, defaultCaseId = "BROWSER"): 
         .map((e) => e?.message || e?.stack || "browser test failed") as string[];
       const screenshot = (last?.attachments ?? []).find((a) => a.name?.startsWith("screenshot-"))?.path;
       const action = [title, test.title].filter(Boolean).join(" — ") || file || "browser test";
+      // Prefer the ID in the spec's own title first — `title` here already includes every ancestor
+      // suite title (see collectSpecs), and the describe-block conventionally repeats the slug (e.g.
+      // "BR-55 · Finance & Payment Report"). That slug also matches the ID pattern and, being leftmost,
+      // would otherwise be picked up instead of the real per-test case id (e.g. "TD-01").
+      const caseId = extractCaseId(spec.title ?? "", "") || extractCaseId(action, defaultCaseId);
       results.push({
-        caseId: extractCaseId(action, defaultCaseId), case: extractCaseId(action, defaultCaseId), index,
+        caseId, case: caseId, index,
         target: "browser", kind: "browser", phase: "test", action, passed, skipped,
         detail: passed ? `Playwright passed${last?.duration ? ` in ${last.duration}ms` : ""}` : errors.join("; ") || `Playwright status: ${status}`,
         consoleErrors: [], ...(screenshot ? { screenshot } : {}),
