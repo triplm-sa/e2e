@@ -1,30 +1,32 @@
 ---
 name: e2e-data
-description: Prepare concrete test data for a task — either discover real values on the store (ids, handles, emails) or generate unique, traceable values covering positive, boundary and negative inputs. Triggered by /e2e data.
+description: Prepare concrete, traceable test data and setup/teardown values for an approved E2E plan. Triggered by /e2e data.
 ---
 
 # e2e-data
 
-Provide **concrete test data** so the plan, yaml and spec never rely on vague values such as "a valid email".
+**Role:** make every approved case executable with concrete data. Do not change coverage or business expectations here.
 
-Shared conventions: `../_shared/conventions.md`.
+**Load first:** `../_shared/core.md`.
+**Load when needed:** `../_shared/references/quality-gate.md`, `../_shared/references/automation-ladder.md`, `../_shared/references/field-validation.md`, `../_shared/project-notes.md`.
 
-**Input:** `<slug>`, with `plan.md` or `cases.yaml` already present. Ask the tester if missing.
+**Input:** `<slug>` with `plan.md` or `cases.yaml` present. In `/e2e-full`, the approved plan is the normal input.
 
-**Output:** `cases/<slug>/data.md`, **written in Vietnamese** (see the language policy in conventions).
+**Output:** `cases/<slug>/data.md`, written in Vietnamese; update approved yaml/spec values in place.
 
 ## Steps
 
-1. Read `plan.md` and `cases.yaml` to determine which cases need which data.
+1. Read the approved plan and cases. List the concrete data each case needs.
+2. Prefer real existing data when the case is read-only and the data genuinely exists.
+3. For created/typed values, generate unique, traceable values using the field-validation reference. Cover positive, boundary and negative variants required by the plan.
+4. For missing state, follow `automation-ladder.md` and known chains in `project-notes.md`. Express reachable setup as `phase: setup` and cleanup as `phase: teardown`; never mark a reachable state manual merely because the project notes are empty.
+5. Flag every mutation with cleanup. For non-deletable records such as orders, prefer seeded read-only assertions and document the choice.
+6. Write `data.md` as:
 
-2. Choose a source per case:
-   - **Discover real data on the store** — preferred when the case runs against a real environment. Query the `api` target (curl with the runner's signed auth, or a small `tsx` script) to obtain ids, handles and emails that genuinely exist, then use them in the yaml and spec instead of assumptions.
-   - **Generate new data** — when the case must create or type a value. Follow `../_shared/references/quality-gate.md`: make values unique and traceable using a `[prefix]_[case]_[timestamp]_[random]` shape, and cover **positive, boundary and negative** variants using the groups in `../_shared/references/field-validation.md`. For multi-dimensional combinations use **pairwise** and record the matrix along with any dropped combinations and the reason.
+`| Case | Field | Value | Kind | Source | Cleanup |`
 
-3. **Prefer reaching the state yourself over asking a human for it.** Check `../_shared/project-notes.md` for chains already known for this app — it may be empty, in which case discover them and **append what you find so the next task inherits it**. Then follow `../_shared/references/automation-ladder.md`: when an endpoint can produce the entity, express it as `phase: setup` steps in `cases.yaml` (with `phase: teardown` cleanup) rather than recording it as a manual prerequisite. Reserve manual preparation for entities no rung of the ladder can create.
+7. Populate concrete values in `cases.yaml` and browser specs without changing the approved scenario or expected result.
 
-4. Flag every value that **mutates real data**: state how to clean it up. For records that cannot be deleted — orders being the usual case — seed once and assert read-only instead of creating a new record on every run.
+## Completion check
 
-5. Write `data.md` as a table: `| Case | Field | Value | Kind (positive/boundary/negative) | Source (existing/setup-step/generated) | Cleanup |`.
-
-The result feeds two things: **chained business flows** in the API layer via `capture` and `${var}`, and concrete literal values in the browser spec.
+Every required field has a concrete source; every mutation has cleanup or an explicit non-deletable strategy; data variants match the approved coverage; and `data.md` exists.
