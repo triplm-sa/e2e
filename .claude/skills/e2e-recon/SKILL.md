@@ -23,6 +23,7 @@ description: Inspect the live UI before generating a spec — walk the real flow
 5. Handle iframe, shadow DOM, SPA navigation, tables, overlays and modals explicitly. Record anything `read_page` cannot reach.
 6. Harvest a stable selector and real data for every element the eventual tests must use. Prefer role/label/text → testid → id → CSS → XPath last.
 7. Batch-probe selectors with `pnpm e2e:probe <target> <route> "<selector>" …` before handing them to generation.
+8. **Prefer text/DOM inspection over screenshots.** Use `read_page`, targeted find/query tools, or direct API/DOM inspection when the question is about labels, values, table columns, structure, or selector availability. Take a screenshot only when visual evidence is actually required: layout, position, overlap, visibility, responsive behavior, visual state, or appearance.
 
 ## Report
 
@@ -43,6 +44,7 @@ If an existing spec contains `[NEEDS-SELECTOR-REVIEW]` placeholders, propose rep
 - Never trigger `alert`, `confirm` or `prompt`.
 - After two or three futile interactions, stop and report the blocker instead of looping.
 - Do not browse large DOM snapshots without a specific target.
+- Do not take screenshots merely to duplicate information already available through DOM/text inspection.
 
 ## Completion check
 
