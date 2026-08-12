@@ -1,84 +1,117 @@
 ---
 name: e2e-gen
-description: Generate the human-readable test plan (plan.md with AC and risk columns) plus a coverage matrix for the tester to approve, then compile the approved plan into cases.yaml and a Playwright spec. Triggered by /e2e gen.
+description: Generate an approval-ready test plan and coverage matrix, then compile the approved scope into cases.yaml and a Playwright spec. Triggered by /e2e gen.
 ---
 
 # e2e-gen
 
-Generate the tests for one feature in **two layers**: a human layer (`plan.md`, `coverage.md`) that the tester approves, then a machine layer (`cases.yaml`, spec) compiled **only after approval**. The tester never has to read YAML.
+**Role:** turn the analysed requirement into complete, reviewable coverage, then compile only the approved scope. Do not bypass approval.
 
-Shared conventions: `../_shared/conventions.md`.
+**Load first:** `../_shared/core.md`.
+**Load when needed:**
+- `../_shared/references/quality-gate.md`
+- `../_shared/references/automation-ladder.md`
+- `../_shared/references/field-validation.md` for forms/inputs
+- `../_shared/references/api-security.md` for API targets
+- `../_shared/references/non-functional.md` for genuine non-functional risk
+- `../_shared/project-notes.md`
 
-**Input:** `--jira <KEY>` or a feature name, optionally `--design <file.html>`. When `cases/<slug>/analysis.md` exists (from `e2e-analyze`) use it as the backbone; when `recon.md` or `data.md` exist, use their verified selectors and real data.
+**Input:** `--jira <KEY>` or feature name, optionally `--design <file.html>`. Prefer `analysis.md` and `recon.md` when present.
 
-**Output:** `cases/<slug>/plan.md` and `cases/<slug>/coverage.md` — **written in Vietnamese**; then `cases.yaml` and `browser/<slug>.spec.ts` as code (see the language policy in conventions).
+**Output:** first `plan.md` + `coverage.md` (Vietnamese); after approval, `cases.yaml` + `browser/<slug>.spec.ts`.
 
-## 1. Requirement
+## Workflow
 
-- `requirements.tracker: jira` → fetch from Jira over MCP. With `--jira`, prepend `jiraProjectKey` if the prefix is missing; with no key, ask the tester or search via `searchJiraIssuesUsingJql`. Take the summary, description, acceptance criteria, sub-tasks and links.
-- `tracker: none` → read `requirements.docs`.
-- When `analysis.md` exists, build on it instead of analysing from scratch.
+### 1. Establish the baseline
 
-## 2. Implementation context
+- Read the configured requirement source.
+- If `analysis.md` exists, use its numbered AC list as the single baseline. Otherwise create the AC list before generating cases.
+- Read relevant feature diffs and source implementation. Skip a repository only when its feature branch is absent.
+- Choose touched targets from `e2e.config.yaml`; record why an apparently relevant target is not included.
 
-Read the `feature/<KEY>` branch diff for every repository in `requirements.diffRepos` (paths resolve relative to `e2e/`): if the repository is on the feature branch use `git -C <repo> diff <baseBranch>...HEAD`, otherwise `git -C <repo> diff <baseBranch>...origin/feature/<KEY>`. A repository without that branch is untouched — skip it. Read the feature's source to learn the real endpoints and selectors. With `--design`, extract the expected elements, text and layout. For a new app with no feature branch, skip the diff and generate from the requirement alone.
+### 2. Build coverage
 
-## 3. Build coverage — by tracing, not from memory
+For every AC, enumerate only evidence-backed dimensions:
+- actual enum/config values from source;
+- relevant pages and runtime states, including negative applicability;
+- boundaries and error paths;
+- security/non-functional dimensions when relevant.
 
-- **Numbered ACs are the baseline.** Take `AC-1`, `AC-2`, … from `analysis.md`, or extract them the same way `e2e-analyze` does. With no AC list there is nothing to check coverage against, so **create it before generating any case**.
-- **Choose targets.** Read every target in the config and decide which ones the feature touches: backend logic → `api`; admin actions → `cms`; customer-facing UI → `storefront`; app proxy routes → `proxy`. Never drop a target silently — record the reason in the plan.
-- **Enumerate dimensions from data**, not intuition: each AC; **enum and config values found in the source** (grep union types and config arrays, list the **actual values**, at least one case per value); **pages and runtime states**, including where the feature must *not* apply, which becomes a **negative** case; boundaries and error paths. For large combinations use **pairwise** and record which combinations were dropped and why.
-- **Apply the standard checklists in `../_shared/references/`:** forms and input fields → `field-validation.md`; `api` targets → `api-security.md`; genuine non-functional risk → `non-functional.md`.
-- **Write `coverage.md` — a matrix, not prose:**
-  - AC-to-case table: `| AC | Description | Covering cases |`. **Every AC needs at least one case**; an empty row is a gap.
-  - Dimension-to-case table: each enum value, each page including negatives, each state (guest/logged-in, on/off, valid/invalid), each input field (1 positive + 2 negative). **An empty cell must either be filled or carry a documented reason.**
-- Tag every case with a **risk rating** — High (money, permissions, data loss), Medium (core business logic), Low (secondary or cosmetic).
+Use pairwise for genuinely large combinations and document deliberate exclusions.
 
-## 4. Write the plan
+Create `coverage.md` with:
 
-`plan.md` is what the tester approves, so keep it in plain business language: translate every technical term, and include no selectors, HTTP methods or paths. Structure it as:
+`| AC | Description | Covering cases |`
 
-- A coverage checklist grouped by scenario.
-- The case table: `| # | AC | Risk | Scenario | Action | Expected result | Automatable? |` — a short id such as `TD-01`, the AC it covers, and the risk rating.
+and a dimension matrix. Every AC and every required dimension must have a covering case or an explicit documented reason.
 
-**Filling the "Automatable?" column is a decision, not an impression.** Apply `../_shared/references/automation-ladder.md` to every case whose precondition is not already satisfied. The precondition may be an entity, a **setting or mode to switch**, or an **identity to log in as** — all three are automatable.
+### 3. Decide automation
 
-- Reachable via an API, the app's or another service's → **automatable**; plan `phase: setup` steps to reach the state and `phase: teardown` steps to undo it.
-- Reachable only through the UI → **automatable** via setup inside the spec; note that it is slower.
-- **Follow the chain to the end.** Finding the first endpoint is not the answer. If `create-…` yields only a draft and a `complete-…` endpoint exists, the chain continues; stopping at the draft and skipping the case is a defect.
-- Only when every rung fails may a case be manual, and the cell must carry the **per-rung justification** required by the ladder, naming the routers inspected.
+For every case whose precondition is not already satisfied, apply `automation-ladder.md`.
 
-Use the state-reachability table from `analysis.md` (step 4 of `e2e-analyze`) as input, together with any chains recorded in `../_shared/project-notes.md`. **Both may be empty** — then build the table now by listing the mutating endpoints yourself, and append what you learn to `project-notes.md`. An empty knowledge file is never a reason to mark a case manual.
+- Prefer an existing state.
+- Then the app/another service API.
+- Then UI setup.
+- Only after all rungs fail may the case be manual.
 
-**Gate before step 6:** for every case not marked automatable, confirm the cell contains a per-rung verdict with named endpoints or routers. A bare "needs a company with orders", "needs the account type changed" or "needs real data" is not a valid entry — resolve it into setup steps or write the full justification. Do not present a plan that still contains one.
+Follow a state chain to its terminal business state. Do not stop at a draft when a complete/approve/activate endpoint exists. Use `analysis.md` reachability plus `project-notes.md`; an empty knowledge file is a discovery task, never a reason to mark manual.
 
-## 5. Completeness critic — loop until dry
+For a manual case, record the per-rung verdict with the routers/endpoints inspected. A vague "needs real data" is invalid.
 
-After the table and `coverage.md` exist, run section A of `../_shared/references/quality-gate.md`, then **iterate**:
+### 4. Write the human plan
 
-1. Ask what is still missing, checking every AC, every enum value, every page including negatives, every input field, and the relevant non-functional and security dimensions.
-2. Add the missing cases, update `coverage.md`, and repeat.
-3. Stop when **two consecutive passes produce no new cases**.
+`plan.md` must stay business-readable and contain no selectors, HTTP methods or paths.
 
-**Hard gate before step 6:** `coverage.md` has no unexplained empty cells and **every AC is covered by at least one case**. Until then, do not present the plan. For higher assurance, have an independent subagent review the plan specifically for missing cases — a second perspective catches what the first pass rationalised away.
+Use:
 
-## 6. Present for approval
+`| # | AC | Risk | Scenario | Action | Expected result | Automatable? |`
 
-Show only the human-readable table — never the YAML — together with a **coverage summary line** so the tester sees any gap before approving: covered ACs out of total, enum values covered, number of negative cases, and any deliberately skipped cells.
+Risk: High = money/permissions/data loss; Medium = core business logic; Low = secondary/cosmetic.
 
-**Always** offer the choice through `AskUserQuestion`: approve and compile / approve in part (for example API cases only) / request changes. Add a question for each open business decision. **Without approval, do not compile.**
+### 5. Completeness loop
 
-## 7. Compile the approved plan
+Run the completeness section of `quality-gate.md`, then repeat:
 
-- **API case** → a step in `cases.yaml` with `case: <id>`, `request`, and `expect{status, bodyMatch}`. Steps run **sequentially**, so a business flow can be chained: `capture: { var: <body.path> }` stores a value from the response and later steps interpolate `${var}` into path, headers or body. A string equal to exactly `"${var}"` keeps its type; interpolation inside a longer string yields text. **Any YAML value containing `${...}` must be quoted.** A capture path missing from the response fails the step.
+1. inspect every AC, enum, page/state, input and relevant security/non-functional dimension;
+2. add missing cases;
+3. update `coverage.md`;
+4. repeat until **two consecutive passes add no cases**.
 
-- **Carry the risk rating across.** Every `test` step gets `risk: High | Medium | Low`, copied from the plan, so the report and the generated `report.csv` can show it without anyone re-deriving it.
+**Hard gate:** do not present the plan while an AC is uncovered or a coverage cell is unexplained.
 
-- **Precondition and cleanup steps** → same shape, plus `phase: setup` or `phase: teardown`. Setup steps run first and create the data the tests need; if one fails the remaining tests are reported as **SKIPPED rather than FAILED**, because they never received valid preconditions. Only `test` steps count towards the score. Teardown always runs, including after an abort, so anything setup created gets removed. Records that cannot be deleted (orders, for example) should be seeded once and asserted read-only instead of recreated every run — state that choice in the plan.
-- **Browser case** → a step in `cases.yaml` (`case: <id>`, `action`, `spec`) plus the spec in `browser/<slug>.spec.ts`: import the fixture from `../../../src/browser-fixture.js` and start each test title with the case id, e.g. `test("TD-01 · …")`. Follow the template, the reliability rules and the embedded-app iframe guidance in `../_shared/conventions.md`. Before treating the spec as finished, run the definition of done in `quality-gate.md` section B.
+An independent subagent review is recommended for high-risk or large plans, but it must not replace the explicit completeness loop.
 
-- **Group the tests for parallel execution.** A browser suite is the slowest part of a task, and most of it is usually independent. Split the spec into `test.describe` blocks with an explicit `test.describe.configure({ mode: "parallel" | "serial" })`, following the parallel-safety rules in `../_shared/conventions.md`: read-only cases and cases that only touch their own namespaced data go in a parallel group; cases writing a shop-wide setting, clearing a shared collection, or asserting a store-wide total go in a serial group. Name created fixtures with the worker index and clean up only what matches that name, so a namespaced group can be parallelised too.
+### 6. Approval gate
 
-- **Never write an unverified selector.** Every selector must come from `recon.md` or be checked with `pnpm e2e:probe <target> <route> "<selector>" …` — one page load, a few seconds, and it reports `0 match` (guessed wrong) and `>1 match` (ambiguous, will be flaky) before any test runs. Probe the selectors for a case in **one batch**, then write them in. Discovering a bad selector by running the spec costs a full browser test and a rewrite; probing costs seconds, and a spec whose selectors were never verified will burn far more time in the repair loop than the probing would have taken.
+Present only the human-readable plan plus a compact coverage summary. Never show YAML as the approval artifact.
 
-Keep **case ids identical** across plan, coverage, yaml and spec.
+Use `AskUserQuestion` with:
+- approve and compile;
+- approve only selected scope;
+- request changes.
+
+If an open business decision remains, ask it here. **Without approval, do not compile.**
+
+### 7. Compile approved scope
+
+For API cases, compile sequential `cases.yaml` steps with `case`, `request`, `expect`, captures and quoted `${...}` values as required by the runner.
+
+For setup/teardown, use `phase: setup|teardown`. A failed setup causes dependent tests to be reported as SKIPPED, not FAILED. Only `test` steps count toward pass/fail totals.
+
+Carry the plan risk rating onto every test step.
+
+For browser cases:
+- create `browser/<slug>.spec.ts` using the project fixture;
+- start titles with the case ID;
+- use only selectors from `recon.md` or selectors verified by `pnpm e2e:probe`;
+- use explicit parallel/serial groups based on shared-state rules in `core.md`;
+- run the relevant definition-of-done checks from `quality-gate.md`.
+
+## Completion check
+
+Before compiling, verify:
+- approval exists for the exact scope being compiled;
+- every compiled case has a plan row and coverage mapping;
+- every browser selector is verified;
+- setup/teardown is defined for mutable state;
+- case IDs and risk ratings are consistent across plan → coverage → yaml/spec.
