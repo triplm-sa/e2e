@@ -43,6 +43,10 @@ Store/app handle and target-specific details come from `.env`, `e2e.config.yaml`
 - Never use UI to establish a precondition that an API can establish. Put it in `phase: setup` and reserve the browser for the behavior under test.
 - Use `waitUntil: "domcontentloaded"` when the assertion does not depend on full resource loading.
 - Never increase a timeout to hide a hang. Diagnose the innermost timeout first and probe the selector when an action times out.
+- **Do not make the model transport data that tooling can transport directly.** Copy, move, merge, filter, or transform generated artifacts with shell/project tooling instead of reproducing large blocks through the model. Treat machine-generated tables and evidence as immutable unless a semantic correction is required.
+- **Batch independent tool work.** When multiple Bash/scripts/probes are independent, run them in one tool turn or one combined script. Keep dependent commands sequential when a later command needs an earlier result.
+- Prefer background execution plus the available monitor/await mechanism for long-running E2E commands. If polling is unavoidable, read only new output since the previous checkpoint rather than repeatedly tailing the entire log.
+- Prefer text/DOM/API evidence over screenshots when the question does not require visual evidence. Use screenshots for layout, position, overlap, visibility, responsive behavior, visual state, or other genuinely visual questions.
 
 ## Task layout
 
