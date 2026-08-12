@@ -25,27 +25,13 @@ export function joinUrl(baseUrl: string, path: string): string {
   return new URL(path.replace(/^\/+/, ""), base).toString();
 }
 
-export async function runApiStep(
-  step: ApiStep,
-  target: Target,
-  configDir: string,
-  caseId: string,
-  index: number,
-  vars: Record<string, unknown> = {},
-): Promise<{ result: StepResult; captured: Record<string, unknown> }> {
+export async function runApiStep(step: ApiStep, target: Target, configDir: string, caseId: string, index: number, vars: Record<string, unknown> = {}): Promise<{ result: StepResult; captured: Record<string, unknown> }> {
   const path = interpolate(step.request.path, vars) as string;
   const base = { caseId, case: step.case, index, target: step.target, kind: "api" as const, action: step.action ?? `${step.request.method} ${path}` };
   try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json", ...apiAuthHeaders(target.auth, configDir),
-      ...((interpolate(step.request.headers ?? {}, vars)) as Record<string, string>),
-    };
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...apiAuthHeaders(target.auth, configDir), ...((interpolate(step.request.headers ?? {}, vars)) as Record<string, string>) };
     const body = step.request.body !== undefined ? interpolate(step.request.body, vars) : undefined;
-    const res = await fetch(joinUrl(target.baseUrl, path), {
-      method: step.request.method, headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-    });
+    const res = await fetch(joinUrl(target.baseUrl, path), { method: step.request.method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(API_TIMEOUT_MS) });
     const text = await res.text();
     let parsed: unknown = text;
     try { parsed = JSON.parse(text); } catch { /* keep text */ }
@@ -58,12 +44,12 @@ export async function runApiStep(
     }
     const { passed, detail } = evalExpect(step.expect, res.status, parsed);
     const captureNote = missing.length ? `; missing capture: ${missing.join(", ")}` : "";
-    return { result: { ...base, passed: passed && missing.length === 0, detail: detail + captureNote }, captured };
+    return { result: { ...base, passed: passed && missing.length === 0, failureType: passed && missing.length === 0 ? undefined : "assertion", detail: detail + captureNote }, captured };
   } catch (err) {
     const e = err as Error;
     const detail = e.name === "TimeoutError" || e.name === "AbortError"
       ? `timeout sau ${API_TIMEOUT_MS / 1000}s — ${step.request.method} ${path} không phản hồi. Kiểm tra API còn sống hoặc tăng E2E_API_TIMEOUT.`
       : `request error: ${e.message}`;
-    return { result: { ...base, passed: false, detail }, captured: {} };
+    return { result: { ...base, passed: false, failureType: "environment", detail }, captured: {} };
   }
 }
