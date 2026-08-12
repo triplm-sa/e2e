@@ -1,48 +1,77 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { parse } from "yaml";
+import { renderCsv, renderReport } from "./report.js";
+import { mergeExecutionReports, parsePlaywrightReport, writeJson, type ExecutionReport } from "./execution-report.js";
+import type { CaseFile } from "./types.js";
 
-// One-shot re-test for one or more tasks: doctor → API (e2e:run) → browser (playwright).
-// Usage: pnpm e2e:all <slug> [<slug> ...]   e.g. `pnpm e2e:all BR-55` or `pnpm e2e:all BR-55 BR-53`.
 const slugs = process.argv.slice(2);
 if (!slugs.length) { console.error("Usage: pnpm e2e:all <slug> [<slug> ...]"); process.exit(1); }
 
 function run(cmd: string, args: string[], env: Record<string, string> = {}): boolean {
-  try {
-    execFileSync(cmd, args, { stdio: "inherit", env: { ...process.env, ...env } });
-    return true;
-  } catch {
-    return false; // non-zero exit; keep going so later steps/tasks still run
-  }
+  try { execFileSync(cmd, args, { stdio: "inherit", env: { ...process.env, ...env } }); return true; }
+  catch { return false; }
 }
 
 let anyFail = false;
-
-// Preflight once (advisory — do not abort the run on warnings).
 console.log("\n########## doctor ##########");
-run("tsx", ["src/doctor.ts"]);
+if (!run("tsx", ["src/doctor.ts"])) anyFail = true;
 
 for (const slug of slugs) {
   console.log(`\n########## ${slug} ##########`);
-  const yaml = `cases/${slug}/cases.yaml`;
-  const spec = `cases/${slug}/browser/${slug}.spec.ts`;
-  const outdir = `reports/${slug}`;
+  const root = process.cwd();
+  const yamlPath = resolve(root, `cases/${slug}/cases.yaml`);
+  const spec = resolve(root, `cases/${slug}/browser/${slug}.spec.ts`);
+  const outdir = resolve(root, `reports/${slug}`);
+  const apiReportPath = resolve(outdir, "api-report.json");
+  const browserReportPath = resolve(outdir, "browser-report.json");
 
-  if (existsSync(resolve(process.cwd(), yaml))) {
-    console.log(`\n--- ${slug}: API (${yaml}) ---`);
-    if (!run("tsx", ["src/run.ts", yaml])) anyFail = true;
-  } else {
-    console.log(`--- ${slug}: skip API — no ${yaml} ---`);
+  const hasApi = existsSync(yamlPath);
+  const hasBrowser = existsSync(spec);
+  if (!hasApi && !hasBrowser) {
+    console.error(`❌ ${slug}: no runnable artifact found (expected ${yamlPath} and/or ${spec})`);
+    anyFail = true;
+    continue;
   }
+  mkdirSync(outdir, { recursive: true });
 
-  if (existsSync(resolve(process.cwd(), spec))) {
-    console.log(`\n--- ${slug}: browser (${spec}) ---`);
+  if (hasApi) {
+    console.log(`\n--- ${slug}: API ---`);
+    if (!run("tsx", ["src/run.ts", yamlPath])) anyFail = true;
+  }
+  if (hasBrowser) {
+    console.log(`\n--- ${slug}: browser ---`);
     if (!run("npx", ["playwright", "test", spec], { E2E_OUTDIR: outdir })) anyFail = true;
-  } else {
-    console.log(`--- ${slug}: skip browser — no ${spec} ---`);
+    const playwrightJson = resolve(outdir, "report.json");
+    if (existsSync(playwrightJson)) {
+      // Playwright owns its raw report; rename the semantic boundary so the final report is never overwritten.
+      writeFileSync(browserReportPath, readFileSync(playwrightJson));
+    } else {
+      console.error(`❌ ${slug}: browser run completed without ${playwrightJson}`);
+      anyFail = true;
+    }
   }
 
-  console.log(`\n>>> ${slug}: report → ${outdir}/report.md  (html: ${outdir}/html/index.html)`);
+  let feature = slug;
+  let apiResults = [] as ExecutionReport["results"];
+  if (existsSync(apiReportPath)) {
+    const api = JSON.parse(readFileSync(apiReportPath, "utf8")) as ExecutionReport;
+    feature = api.feature || feature;
+    apiResults = api.results;
+  } else if (hasApi) {
+    try { feature = (parse(readFileSync(yamlPath, "utf8")) as CaseFile).feature || feature; } catch { /* validation failure already surfaced by e2e:run */ }
+  }
+  const browserResults = existsSync(browserReportPath) ? parsePlaywrightReport(browserReportPath, slug) : [];
+  const merged = mergeExecutionReports(feature, apiResults, browserResults);
+  writeJson(resolve(outdir, "report.json"), merged);
+  writeFileSync(resolve(outdir, "report.generated.md"), renderReport(feature, merged.results));
+  writeFileSync(resolve(outdir, "report.csv"), renderCsv(merged.results));
+
+  // Never overwrite a human-maintained report.md. Create a seed only for a brand-new task.
+  const humanReport = resolve(outdir, "report.md");
+  if (!existsSync(humanReport)) writeFileSync(humanReport, renderReport(feature, merged.results));
+  console.log(`>>> ${slug}: canonical report → ${outdir}/report.json`);
 }
 
 process.exit(anyFail ? 1 : 0);
