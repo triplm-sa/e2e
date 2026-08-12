@@ -20,6 +20,8 @@ The user invoked `/e2e-full $ARGUMENTS`. This command is the **orchestrator**. E
 - Keep case IDs identical across `plan.md`, `coverage.md`, `coverage.json`, `cases.yaml`, spec and reports.
 - Write generated artifacts and tester-facing summaries in Vietnamese; code comments remain English as defined by the core convention.
 - In orchestrated mode, `e2e-flaky` may auto-heal for at most five rounds without asking again.
+- **Do not manually reproduce large generated artifacts.** Use file/shell/project tooling to copy or transform generated content and reserve model output for semantic changes.
+- **Batch independent tool work.** Run independent probes/scripts/inspection commands in one tool turn or combined script when practical; keep only dependency-ordered commands sequential.
 
 ### SHOULD
 
