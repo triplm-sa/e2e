@@ -1,9 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { execFileSync } from "node:child_process";
 import { loadConfig } from "./config.js";
 import { apiAuthHeaders } from "./auth/index.js";
-import type { Target } from "./types.js";
+import type { E2EConfig, Target } from "./types.js";
 
 const cwd = process.cwd();
 const configPath = resolve(cwd, process.env.E2E_CONFIG ?? "e2e.config.yaml");
@@ -20,11 +20,8 @@ const chrome = ["google-chrome", "google-chrome-stable", "/opt/google/chrome/chr
   .find((c) => { try { execFileSync("bash", ["-lc", `command -v "${c}" || test -x "${c}"`]); return true; } catch { return false; } });
 
 console.log("[2] e2e.config.yaml");
-if (!existsSync(configPath)) {
-  bad(`Not found: ${configPath}`);
-  finish();
-}
-let cfg;
+if (!existsSync(configPath)) { bad(`Not found: ${configPath}`); finish(); }
+let cfg: E2EConfig;
 try {
   cfg = loadConfig(configPath);
   ok("Config parsed and validated (${VAR} resolved)");
@@ -56,11 +53,11 @@ for (const [name, t] of entries) {
 const apiEntry = entries.find(([, t]) => t.kind === "api");
 if (apiEntry) {
   console.log("[4] API reachable");
-  const base = apiEntry[1].baseUrl;
+  const base = apiEntry[1].baseUrl.replace(/\/$/, "");
   let reachable = false;
   for (const p of ["/life-check", "/health/live"]) {
     try {
-      const out = execFileSync("curl", ["-s", "-m", "8", "-o", "/dev/null", "-w", "%{http_code}", `${base.replace(/\/$/, "")}${p}`], { encoding: "utf8" });
+      const out = execFileSync("curl", ["-s", "-m", "8", "-o", "/dev/null", "-w", "%{http_code}", `${base}${p}`], { encoding: "utf8" });
       if (out.startsWith("2")) { ok(`${base}${p} → ${out}`); reachable = true; break; }
       warn(`${base}${p} → ${out}`);
     } catch { warn(`${base}${p} unreachable`); }
