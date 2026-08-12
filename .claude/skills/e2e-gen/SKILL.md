@@ -1,11 +1,11 @@
 ---
 name: e2e-gen
-description: Generate an approval-ready test plan and coverage matrix, then compile the approved scope into cases.yaml and a Playwright spec. Triggered by /e2e gen.
+description: Generate an approval-ready test plan, decision/coverage matrix, then compile the approved scope. Triggered by /e2e gen.
 ---
 
 # e2e-gen
 
-**Role:** turn the analysed requirement into complete, reviewable coverage, then compile only the approved scope. Do not bypass approval.
+**Role:** turn the analysed requirement into complete, reviewable coverage, validate it deterministically, then compile only the approved scope. Do not bypass approval.
 
 **Load first:** `../_shared/core.md`.
 **Load when needed:**
@@ -18,7 +18,19 @@ description: Generate an approval-ready test plan and coverage matrix, then comp
 
 **Input:** `--jira <KEY>` or feature name, optionally `--design <file.html>`. Prefer `analysis.md` and `recon.md` when present.
 
-**Output:** first `plan.md` + `coverage.md` (Vietnamese); after approval, `cases.yaml` + `browser/<slug>.spec.ts`.
+**Outputs:**
+- before approval: `plan.md`, `coverage.md`, `coverage.json`;
+- after approval: `cases.yaml` + `browser/<slug>.spec.ts`.
+
+## Execution profiles
+
+Choose the lightest profile that preserves coverage quality:
+
+- **FAST:** small feature, <=10 planned cases, no meaningful combinatorial matrix, no high-risk branch. Skip independent review and non-applicable recon/reference work.
+- **STANDARD:** default. Run the completeness loop and deterministic coverage validator.
+- **HEAVY:** high-risk or large feature, >10 planned cases, multiple interacting decisions, security-sensitive behavior, or broad state matrix. Add an independent review before approval and use explicit decision/branch coverage.
+
+Profile selection changes review depth, **not** the requirement that every AC and required coverage dimension is mapped.
 
 ## Workflow
 
@@ -29,7 +41,7 @@ description: Generate an approval-ready test plan and coverage matrix, then comp
 - Read relevant feature diffs and source implementation. Skip a repository only when its feature branch is absent.
 - Choose touched targets from `e2e.config.yaml`; record why an apparently relevant target is not included.
 
-### 2. Build coverage
+### 2. Build coverage and decision matrix
 
 For every AC, enumerate only evidence-backed dimensions:
 - actual enum/config values from source;
@@ -37,13 +49,15 @@ For every AC, enumerate only evidence-backed dimensions:
 - boundaries and error paths;
 - security/non-functional dimensions when relevant.
 
-Use pairwise for genuinely large combinations and document deliberate exclusions.
+For each business decision in source or requirements, create a decision entry with **at least two branches** and map one or more cases to every branch. Examples: authorized/unauthorized, valid/invalid, sufficient/insufficient stock, active/inactive, B2B/retail.
 
-Create `coverage.md` with:
+Use pairwise for genuinely large combinations and document deliberate exclusions. Do not silently collapse distinct business decisions into one happy-path case.
 
-`| AC | Description | Covering cases |`
+Create:
+- `coverage.md` for human review;
+- `coverage.json` as the machine-readable source for deterministic validation, containing `acs`, `dimensions`, `decisions`, and `cases` with explicit mappings.
 
-and a dimension matrix. Every AC and every required dimension must have a covering case or an explicit documented reason.
+Every AC, required dimension and decision branch must have a covering case or an explicit documented reason for exclusion.
 
 ### 3. Decide automation
 
@@ -68,18 +82,25 @@ Use:
 
 Risk: High = money/permissions/data loss; Medium = core business logic; Low = secondary/cosmetic.
 
-### 5. Completeness loop
+### 5. Completeness loop + deterministic validator
 
 Run the completeness section of `quality-gate.md`, then repeat:
 
 1. inspect every AC, enum, page/state, input and relevant security/non-functional dimension;
-2. add missing cases;
-3. update `coverage.md`;
-4. repeat until **two consecutive passes add no cases**.
+2. inspect every decision and branch;
+3. add missing cases;
+4. update `coverage.md` and `coverage.json`;
+5. repeat until **two consecutive passes add no cases**.
 
-**Hard gate:** do not present the plan while an AC is uncovered or a coverage cell is unexplained.
+Then run:
 
-An independent subagent review is recommended for high-risk or large plans, but it must not replace the explicit completeness loop.
+`pnpm e2e:coverage:validate cases/<slug>/coverage.json`
+
+The validator is **deterministic code**, not an LLM. It checks unique IDs, every AC mapping, required dimensions, decision branches, referenced case IDs and malformed coverage data. A failed validator is a hard gate.
+
+For STANDARD/HEAVY profiles, after the validator passes, perform one independent review when required by the profile. The independent review can add cases, so rerun the validator after any change.
+
+**Hard gate:** do not present the plan while an AC is uncovered, a required dimension/branch is unexplained, or the deterministic validator fails.
 
 ### 6. Approval gate
 
@@ -107,6 +128,12 @@ For browser cases:
 - use explicit parallel/serial groups based on shared-state rules in `core.md`;
 - run the relevant definition-of-done checks from `quality-gate.md`.
 
+After compilation, validate the exact approved coverage against the compiled cases:
+
+`pnpm e2e:coverage:validate cases/<slug>/coverage.json cases/<slug>/cases.yaml`
+
+Do not run or report the compiled scope if this check fails.
+
 ## Completion check
 
 Before compiling, verify:
@@ -114,4 +141,5 @@ Before compiling, verify:
 - every compiled case has a plan row and coverage mapping;
 - every browser selector is verified;
 - setup/teardown is defined for mutable state;
-- case IDs and risk ratings are consistent across plan → coverage → yaml/spec.
+- case IDs and risk ratings are consistent across plan → coverage → yaml/spec;
+- deterministic coverage validation passes.
