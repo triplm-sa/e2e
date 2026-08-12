@@ -97,6 +97,35 @@ Two traps this table exists to prevent:
 `setup-dev/bplus-cms/` holds a scaffold copy of these components; the app actually under test is
 `b2bridge-cms/`. Read the latter.
 
+**Polaris `TextField`/`Select` with `labelHidden` still exposes the label as the accessible name —
+use `getByLabel`, never guess a `placeholder`.** `RateTierTable.tsx` (shipping-rate tiers, BR-52) sets
+`label={...} labelHidden` on every column (`From`, `To`, `Amount type`, `Amount`) — visually there is
+no label, but Playwright's `getByLabel` still resolves it. The `Amount` column shows its currency
+symbol via a Polaris `prefix` prop, **not** a `placeholder` — `input[placeholder="$"]` matches nothing.
+Only the `To` column genuinely has a `placeholder` ("No limit", for the open-ended last row). A wrong
+guess here was written into a spec straight from a screenshot instead of the component source, and
+only failed once the suite actually ran — read the source for any Polaris field before trusting how
+it looks on screen. Multiple tier rows share the same label per column, so scope with `.nth(index)`
+or a row container, the same trap as the picker confirm buttons above.
+
+**`getByLabel('Amount')` on the Shipping Rate wizard is ambiguous — it also matches the "Rate is
+measured by" radio button literally labelled "Amount".** That radio sits earlier in the DOM than the
+tier table, so `.first()` silently grabs the radio instead of the currency `TextField`, and an
+assertion like `toBeDisabled()` fails with `Received: enabled` while pointing at a `type="radio"`
+element — easy to misread as "the lock feature is broken" when it is only the wrong element. Use `getByRole('spinbutton', { name: 'Amount' })` for the tier fields instead — this excludes the
+radio (role `radio`) entirely. **Note the role is `spinbutton`, not `textbox`**: a Polaris `TextField`
+with `type="number"` renders a native `<input type="number">`, whose implicit ARIA role is
+`spinbutton` — `getByRole('textbox', ...)` matches **zero** elements for it. Same rule applies to the
+tier table's `From`/`To` columns.
+
+**A short label can be a substring of longer radio labels — use `exact: true`.** The usage-limit
+number field is labelled "Limit"; the three radios above it are labelled "No limit", "Limit total
+uses across all customers" and "Limit uses per customer". `getByLabel('Limit')` without `exact: true`
+matches all four (Playwright's default name matching is substring/normalized, not exact), throwing a
+strict-mode violation. Also watch for duplicated field-level error text: Polaris renders the same
+validation message both in a top banner (`getByRole('alert')`) and inline under the field — a bare
+`getByText('<message>')` after any Continue-triggered validation on this wizard needs `.first()`.
+
 ## Environment checks for this project
 
 - API health: `GET <API_BASE_URL>/health/live` (some services also expose `/life-check`).
