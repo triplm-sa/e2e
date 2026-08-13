@@ -26,7 +26,7 @@ Sequences that reach a required state — extend this list as you discover more:
 | A real order exists | `POST /orders/create-draft-order` → `POST /orders/complete-draft-order` |
 | An unpaid order (credit / payment-term scenarios) | same chain, completed with payment pending |
 | Draft order removed | `POST /orders/delete-draft-order` |
-| A company member exists | `POST /company-accounts/:id/members` → accept/approve endpoint to activate |
+| A company member exists | `POST /company-accounts/:id/members` (= `sendInvitation`, body `{email, role_id}`; role `id=2` "Default" is non-admin, `id=1` "Admin") → creates a **PENDING/invited** row, sends a real email. `GET /company-accounts/:id/members` only returns **ACTIVATED** members — the new invite will NOT show up there. To force-activate without the email link: `PUT /company-accounts/:id/members/:memberId` `{status:"ACTIVATED"}` (grab the new member's id straight from the invite response's `data.member.id`, not from a follow-up GET). |
 | Member removed | `DELETE /company-accounts/:id/members/:memberId` |
 | A second buyer identity | log in the `storefront-2` / `proxy-2` persona slot once (`PERSONA2_PROFILE` in `.env`) |
 | A shipping option exists (BR-52) | `POST /shipping-rates` (full body: scopes + `tiers[]`) → `DELETE /shipping-rates/:id` to clean up |
@@ -37,6 +37,7 @@ Sequences that reach a required state — extend this list as you discover more:
 | `shipping_rate_usage` rows | **no direct endpoint** — only the `orders/paid` webhook writes them, reading the `shipping_rate_id` order attribute. Reaching the "limit hit" branch needs a really-paid order. |
 | **A buyer cart the app can see** | ⚠ **The app does NOT use the Shopify theme cart.** The proxy pages read a **Storefront-API cart** whose id is kept in `localStorage` under `b2bridge-cart-<store>` (`utils/cart.ts#checkExistCart` → `createCartSession`). Adding lines via `/cart/add` or `/cart.js` fills the *theme* cart and the app still shows "Your cart is empty". Reach the real state through the app's own UI: `/apps/b2bridge/quick-order` → "Add to cart" (many demo products are out of stock — take the first enabled button). |
 | Reference data for rate scopes | `GET /customer-groups` (also gives `customer_tags`), `GET /markets`, `GET /products`, `GET /pricing-lists` |
+| Overdue / not-yet-overdue order with a real payment schedule (BR-55) | **No endpoint sets a schedule due date directly.** `GET /orders/payment-terms-summary/:customerId` reflects whatever the shop already has — check for existing "Fixed"-payment-term orders first (`GET /orders/customer-orders/:customerId`) before creating anything; a "Due on receipt" order never produces a `paymentSchedules` entry at all, so it's useless for overdue/next-payment-due assertions. |
 
 ## Switchable settings
 
@@ -52,6 +53,13 @@ Switching a setting is a `phase: setup` step, never a reason to skip a case. Res
 > ⚠️ **`POST /general-settings` is a full upsert with defaults, not a patch.** Fields you omit are reset — `paymentReportSettings` becomes `null`, `isEnabledOverridePrice` becomes `true`, `isShowWatermark` becomes `false`. Always **read the current settings first, change only the field you need, and post the whole object back**; otherwise a setup step that flips the account type will silently wipe the report configuration other cases depend on.
 
 Because this setting is shop-wide, group the cases that need a given mode together so the switch happens once rather than per case.
+
+> ⚠️ **Switching `accountType` and immediately reading the report on a different persona can race.** The proxy appears to cache/revalidate the merchant's `accountType` for a few seconds — a test that flips it, restores it, then opens a report page for another persona right away can transiently see `$NaN` credit values. Not a feature bug (confirmed: same case passes cleanly in isolation) — give the page a settle-reload if it renders "$NaN", or space out accountType-mutating cases (BR-55 `openReportSettled()` helper in `browser/BR-55.spec.ts`).
+
+## CMS (embedded app) locator gotchas
+
+- **App Bridge `<SaveBar>` (`ContextualSaveBar` wrapper) renders in the Admin top-level chrome, NOT inside the app iframe** — the component only wires `onClick` handlers onto empty `<button>`s; the actual "Save"/"Discard" buttons and labels are drawn by Shopify outside `frameLocator`. Target them on the top-level page object, not through `app.getByRole(...)`.
+- Custom dropdown menus built on Radix/shadcn `DropdownMenu` (e.g. report range/activity filters) expose items with role **`menuitem`**, not `option` — `getByRole("option", ...)` will silently time out.
 
 ## Environment checks for this project
 

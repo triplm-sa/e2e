@@ -5,8 +5,8 @@ import { persistentOpts } from "./chrome-opts.js";
 import { copyProfile, removeProfile } from "./profile.js";
 
 const CONFIG_PATH = process.env.E2E_CONFIG ?? resolve(process.cwd(), "e2e.config.yaml");
-const cfg = loadConfig(CONFIG_PATH); // resolves ${VAR} from e2e/.env / process.env
-const HEADLESS = process.env.E2E_HEADLESS === "1"; // window shown by default (lowers the risk of being blocked by Cloudflare).
+const cfg = loadConfig(CONFIG_PATH);
+const HEADLESS = process.env.E2E_HEADLESS === "1";
 
 function target(name: string) {
   const t = cfg.targets[name];
@@ -14,68 +14,44 @@ function target(name: string) {
   return t;
 }
 
-type Fixtures = {
-  consoleErrors: string[];
-  openTarget: (name: string) => Promise<Page>;
-};
+type Fixtures = { consoleErrors: string[]; openTarget: (name: string) => Promise<Page> };
 
-type ProfileEntry = { ctx: BrowserContext; dir: string; copied: boolean };
+export const test = base.extend<Fixtures>({
+  consoleErrors: async ({}, use) => {
+    const errors: string[] = [];
+    await use(errors);
+  },
+  openTarget: async ({ browser, consoleErrors }, use, testInfo) => {
+    // Each openTarget call gets its own context/profile snapshot. This keeps tests independent while
+    // preserving the logged-in Shopify session from the master Chrome profile.
+    const contexts: BrowserContext[] = [];
+    const temporaryProfiles: string[] = [];
+    const pages: { name: string; page: Page }[] = [];
 
-export const test = base.extend<Fixtures & { _errors: string[] }, { _profiles: Map<string, ProfileEntry> }>({
-  // Worker-scoped: cache the persistent context per profile directory to avoid relaunching it per test.
-  _profiles: [
-    async ({}, use) => {
-      const m = new Map<string, ProfileEntry>();
-      await use(m);
-      for (const { ctx, dir, copied } of m.values()) {
-        await ctx.close().catch(() => {});
-        if (copied) removeProfile(dir); // the worker's snapshot has served its purpose
-      }
-    },
-    { scope: "worker" },
-  ],
-  _errors: async ({}, use) => { await use([]); },
-  consoleErrors: async ({ _errors }, use) => { await use(_errors); },
-  openTarget: async ({ browser, _profiles, _errors }, use, testInfo) => {
-    const perTestCtx: BrowserContext[] = []; // storage-state contexts → closed after each test
-    const openedPages: Page[] = [];          // tabs opened on the persistent context → close the tab, keep the context
-    const shots: { name: string; page: Page }[] = []; // pages to screenshot explicitly at teardown
     const open = async (name: string) => {
       const t = target(name);
       let page: Page;
       if (t.auth.type === "chrome-profile") {
-        // Reuse the already-logged-in Chrome profile (via e2e:login). baseURL enables goto("/path").
         const master = resolve(process.cwd(), t.auth.profileDir);
-        let entry = _profiles.get(master);
-        if (!entry) {
-          // Chrome locks a profile directory, so workers cannot share one. Beyond the first worker,
-          // launch from a private snapshot instead; the master profile is then only ever read.
-          const copied = testInfo.workerIndex > 0;
-          const dir = copied ? copyProfile(master, `${master}-w${testInfo.workerIndex}`) : master;
-          const ctx = await chromium.launchPersistentContext(dir, { ...persistentOpts(HEADLESS), baseURL: t.baseUrl });
-          entry = { ctx, dir, copied };
-          _profiles.set(master, entry);
-        }
-        page = await entry.ctx.newPage();
-        openedPages.push(page);
+        const dir = copyProfile(master);
+        temporaryProfiles.push(dir);
+        const ctx = await chromium.launchPersistentContext(dir, { ...persistentOpts(HEADLESS), baseURL: t.baseUrl });
+        contexts.push(ctx);
+        page = await ctx.newPage();
       } else {
         const storageState = t.auth.type === "storage-state" ? resolve(process.cwd(), t.auth.file) : undefined;
         const ctx = await browser.newContext({ baseURL: t.baseUrl, storageState });
-        perTestCtx.push(ctx);
+        contexts.push(ctx);
         page = await ctx.newPage();
       }
-      shots.push({ name, page });
-      // Append the RELATIVE route to the FULL baseUrl (keeping the path, e.g. .../apps/<handle>) — to avoid
-      // "/route" being truncated to the origin by URL resolution and losing the /store/.../apps/<handle> part.
+      pages.push({ name, page });
+
       const base = t.baseUrl.endsWith("/") ? t.baseUrl : `${t.baseUrl}/`;
       const origGoto = page.goto.bind(page);
       page.goto = ((url: string, opts?: Parameters<Page["goto"]>[1]) =>
         origGoto(/^https?:\/\//.test(url) ? url : new URL(url.replace(/^\//, ""), base).toString(), opts)) as Page["goto"];
-      // Treat requestfailed as an error only if it is on the same host as the target (drop third-party analytics/CDN noise).
+
       const targetHost = (() => { try { return new URL(t.baseUrl).host; } catch { return ""; } })();
-      // Tag where a console message came from. Browser extensions and third-party scripts emit
-      // errors that have nothing to do with the app; labelling them NOISE at capture time stops
-      // them from later being misread as evidence that the app or its tunnel is down.
       const originTag = (url: string): string => {
         if (!url) return " [origin:unknown]";
         if (/^(chrome|moz|safari-web)-extension:\/\//.test(url)) return " [browser-extension · NOISE]";
@@ -86,31 +62,32 @@ export const test = base.extend<Fixtures & { _errors: string[] }, { _profiles: M
       page.on("console", (m) => {
         if (m.type() !== "error") return;
         const url = m.location()?.url ?? "";
-        _errors.push(`[console.error]${originTag(url)} ${m.text()}${url ? `  (${url})` : ""}`);
+        consoleErrors.push(`[console.error]${originTag(url)} ${m.text()}${url ? `  (${url})` : ""}`);
       });
-      page.on("pageerror", (e) => _errors.push(`[pageerror] ${e.message}`));
+      page.on("pageerror", (e) => consoleErrors.push(`[pageerror] ${e.message}`));
       page.on("requestfailed", (r) => {
         let host = "";
         try { host = new URL(r.url()).host; } catch { /* ignore */ }
-        if (host === targetHost) _errors.push(`[requestfailed] ${r.method()} ${r.url()} ${r.failure()?.errorText ?? ""}`);
+        if (host === targetHost) consoleErrors.push(`[requestfailed] ${r.method()} ${r.url()} ${r.failure()?.errorText ?? ""}`);
       });
       return page;
     };
-    await use(open);
-    if (_errors.length) await testInfo.attach("console-errors", { body: _errors.join("\n"), contentType: "text/plain" });
-    // Screenshot the REAL target pages explicitly (Playwright's built-in screenshot:"on" grabs the
-    // persistent context's blank about:blank tab instead — hence the all-white images). Capture here,
-    // while the page is still open and navigated, so the HTML report shows actual content.
-    for (let i = 0; i < shots.length; i++) {
-      const { name, page } = shots[i];
-      try {
-        if (page.isClosed() || page.url() === "about:blank") continue; // nothing meaningful to capture
-        const body = await page.screenshot({ timeout: 5_000 });
-        await testInfo.attach(`screenshot-${name}${shots.length > 1 ? `-${i + 1}` : ""}`, { body, contentType: "image/png" });
-      } catch { /* page torn down / navigating — skip rather than fail the test */ }
+
+    try {
+      await use(open);
+    } finally {
+      if (consoleErrors.length) await testInfo.attach("console-errors", { body: consoleErrors.join("\n"), contentType: "text/plain" });
+      for (let i = 0; i < pages.length; i++) {
+        const { name, page } = pages[i];
+        try {
+          if (page.isClosed() || page.url() === "about:blank") continue;
+          const body = await page.screenshot({ timeout: 5_000 });
+          await testInfo.attach(`screenshot-${name}${pages.length > 1 ? `-${i + 1}` : ""}`, { body, contentType: "image/png" });
+        } catch { /* page torn down / navigating — skip rather than fail the test */ }
+      }
+      for (const ctx of contexts) await ctx.close().catch(() => {});
+      for (const dir of temporaryProfiles) removeProfile(dir);
     }
-    for (const p of openedPages) await p.close().catch(() => {});
-    for (const ctx of perTestCtx) await ctx.close();
   },
 });
 

@@ -52,12 +52,15 @@ Nhờ tách lớp: cùng một bộ test cho ra cùng kết quả, chạy lại 
 | `browser-fixture.ts` | Fixture Playwright: mở target theo config, bắt console error, chụp ảnh trang thật |
 | `run.ts` | Điều phối API step tuần tự, giữ biến chain, ghi report |
 | `report.ts` | Render `report.md` và `report.csv` (deterministic, không cần AI) |
+| `execution-report.ts` | Gộp kết quả API + browser thành `report.json` canonical; parse Playwright JSON sang `StepResult` chung |
 | `doctor.ts` | Preflight: Chrome, config, chữ ký token, phiên đăng nhập, tình trạng API |
-| `all.ts` | Chạy trọn doctor → API → browser cho một hoặc nhiều task |
+| `all.ts` | Chạy trọn doctor → API → browser cho một hoặc nhiều task, ghi `report.json`/`report.generated.md`/`report.csv` |
 | `login.ts` | Lưu phiên đăng nhập (chrome-profile hoặc storage-state) |
 | `profile.ts` | Nhân bản profile Chrome (bỏ cache) — gỡ khoá độc quyền để chạy song song |
 | `probe.ts` | Kiểm selector trên trang thật, không chạy test — báo 0 match / >1 match |
-| `retry.ts` | Chạy lại chỉ test đã fail (`--last-failed`) hoặc một case |
+| `retry.ts` | Chạy lại chỉ test đã fail (`--last-failed`) hoặc một case, ghi vào `reports/<slug>/retry/` — **không đụng** `report.json`/`html/index.html` canonical |
+| `coverage-validator.ts` | Kiểm định `coverage.json` bằng luật cứng: mọi AC có ≥1 case, không case nào lơ lửng |
+| `validation.ts` / `types.ts` / `assert.ts` / `chrome-opts.ts` | Schema `cases.yaml`, kiểu dữ liệu dùng chung, helper assertion, tuỳ chọn khởi chạy Chrome |
 
 Unit test của chính engine nằm ở `tests/` — chạy bằng `pnpm test`.
 
@@ -177,16 +180,28 @@ Test đi đúng luồng **Admin → app (iframe) → route**; route tương đ�
 |---|---|---|
 | `/e2e analyze [--jira KEY]` | `e2e-analyze` | Tách acceptance criteria đánh số, phát hiện điểm mập mờ, xác nhận với tester → `analysis.md` |
 | `/e2e recon <slug>` | `e2e-recon` | Dùng Claude in Chrome soi DOM thật (iframe/shadow/SPA), thu thập selector + data thật → `recon.md` |
-| `/e2e gen [--jira KEY] [--design f.html]` | `e2e-gen` | Requirement + diff + codebase → `plan.md` (cột AC và Rủi ro) + `coverage.md` → **tester phê duyệt** → biên dịch `cases.yaml` + spec |
+| `/e2e gen [--jira KEY] [--design f.html]` | `e2e-gen` | Requirement + diff + codebase → `plan.md` (cột AC và Rủi ro) + `coverage.md` + `coverage.json` → **tester phê duyệt** → biên dịch `cases.yaml` + spec |
 | `/e2e data <slug>` | `e2e-data` | Data thật trên store hoặc data sinh mới (unique/biên/pairwise) → `data.md` |
 | `/e2e run <slug>` | `e2e-run` | Thực thi API + browser, phân tích nguyên nhân trỏ `file:line` → `reports/<slug>/report.md` |
 | `/e2e flaky <slug> [fix]` | `e2e-flaky` | Chạy lại, phân loại 4 nhóm nguyên nhân, auto-heal tối đa 5 vòng, tin pass ≥2 lần liên tiếp |
 | `/e2e report <slug>` | `e2e-report` | Viết phần phân tích vào `report.md` (`report.csv` do engine sinh sẵn) |
 | `/e2e login [target=cms]` | — | `pnpm e2e:login`: mở Chrome → đăng nhập Shopify + 2FA → mở app → đóng cửa sổ, phiên lưu vào profile |
 
-**Chạy toàn bộ chuỗi bằng một lệnh:** `/e2e-full --jira <KEY>` — orchestrator kết hợp mọi skill, ghi tiến độ vào `cases/<slug>/task.md`.
+**Chạy toàn bộ chuỗi bằng một lệnh:** `/e2e-full --jira <KEY>` — orchestrator chạy theo **state machine** (`ANALYZED → RECONSTRUCTED → PLANNED → APPROVED → DATA_READY → EXECUTED → STABLE → REPORTED`), ghi tiến độ vào `cases/<slug>/task.md`; một mục chỉ được tick khi artifact tương ứng đã tồn tại và đạt điều kiện hoàn thành.
 
 Quy trình chỉ dừng để hỏi tester ở **hai điểm kiểm soát**: (1) phê duyệt kế hoạch sau `gen`; (2) khi phát hiện mâu thuẫn quy tắc nghiệp vụ. Ngoài ra AI tự chạy.
+
+### Execution profile — FAST / STANDARD / HEAVY
+
+`e2e-gen` và `e2e-full` chọn độ sâu theo quy mô feature thay vì áp cùng một mức cho mọi task:
+
+| Profile | Áp dụng khi | Bỏ qua / thêm |
+|---|---|---|
+| **FAST** | ≤10 case dự kiến, không có ma trận tổ hợp, không nhánh rủi ro cao | Bỏ qua review độc lập và recon/reference không áp dụng; vẫn chạy coverage validator |
+| **STANDARD** | Mặc định | Chạy đủ completeness loop, decision/branch matrix (nếu có), coverage validator, flaky healing có mục tiêu |
+| **HEAVY** | Rủi ro cao, >10 case, nhiều quyết định tương tác, nhạy cảm bảo mật, ma trận trạng thái rộng | Thêm review độc lập + branch coverage tường minh trước khi phê duyệt |
+
+Profile chỉ đổi độ sâu/khối lượng công việc phụ; không cho phép bỏ sót AC hay nhánh bắt buộc nào dù ở mức FAST.
 
 ---
 
@@ -199,18 +214,23 @@ cases/<slug>/                # ĐẦU VÀO (vd BR-53/)
   analysis.md                # acceptance criteria + điểm mập mờ        (analyze)
   recon.md                   # selector & dữ liệu thật                  (recon)
   plan.md                    # kế hoạch đọc-được — TESTER PHÊ DUYỆT     (gen)
-  coverage.md                # ma trận AC → case                        (gen)
+  coverage.md                # ma trận AC → case (đọc cho người)        (gen)
+  coverage.json              # ma trận AC → case (máy đọc, validator)   (gen)
   data.md                    # dữ liệu test                             (data)
   cases.yaml                 # test tầng API (máy chạy)                 (gen)
   browser/<slug>.spec.ts     # test giao diện (máy chạy)                (gen)
-  task.md                    # tiến độ full-flow                        (e2e-full)
+  task.md                    # tiến độ full-flow theo state machine     (e2e-full)
 
 reports/<slug>/              # ĐẦU RA (gitignore, ghi đè mỗi lần chạy)
-  report.md                  # 1. Bug · 2. Kết quả theo case · 3. Case chưa kiểm được · 4. Console
+  report.md                  # 1. Bug · 2. Kết quả theo case · 3. Case chưa kiểm được · 4. Console (tester sở hữu sau khi seed)
+  report.generated.md        # bản engine tự sinh lại mỗi lần chạy — nguồn để carry vào report.md, không sửa tay
   report.csv                 # engine tự sinh mỗi lần chạy — Google Sheets / Jira / TestRail
-  report.json                # dữ liệu máy đọc
-  html/index.html            # báo cáo Playwright, ảnh nhúng sẵn
+  report.json                # dữ liệu máy đọc — nguồn sự thật (canonical) cho stage run/flaky/report
+  api-report.json            # kết quả riêng tầng API trước khi gộp
+  browser-report.json        # kết quả riêng tầng browser (Playwright JSON) trước khi gộp
+  html/index.html            # báo cáo Playwright, ảnh nhúng sẵn — chỉ `pnpm e2e:all` mới ghi đè file này
   artifacts/<test>/          # ảnh chụp mỗi case + trace.zip khi FAIL
+  retry/                     # đầu ra của `pnpm e2e:retry` — bằng chứng riêng, không đè lên report.json/html canonical
 ```
 
 Xem kết quả browser: mở `reports/<slug>/html/index.html`. Mở trace: `pnpm exec playwright show-trace <file.zip>`.
@@ -250,6 +270,7 @@ E2E_OUTDIR=reports/<slug> pnpm e2e:browser cases/<slug>/browser/<slug>.spec.ts
 pnpm e2e:retry <slug>            # chỉ chạy lại test đã fail lần trước
 pnpm e2e:retry <slug> TD-07      # chỉ một case
 pnpm e2e:probe cms /settings "getByRole:button:Save" "#total"   # kiểm selector, ~vài giây
+pnpm e2e:coverage:validate cases/<slug>/coverage.json           # kiểm mọi AC có ≥1 case, không case nào lơ lửng
 
 # Unit test của chính engine
 pnpm test

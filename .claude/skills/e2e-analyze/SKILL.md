@@ -1,36 +1,46 @@
 ---
 name: e2e-analyze
-description: Analyse a requirement before any test is generated — extract numbered acceptance criteria, map them to real code, surface ambiguities and get them confirmed, then write analysis.md. Triggered by /e2e analyze.
+description: Analyse a requirement before test generation — extract numbered acceptance criteria, trace them to real code, map reachable states and surface only material business ambiguity. Triggered by /e2e analyze.
 ---
 
 # e2e-analyze
 
-Analyse the requirement to catch ambiguity **early**, before it turns into wrong test cases. This skill does **not** generate test cases.
+**Role:** establish the factual baseline for every later stage. Do not generate test cases here.
 
-Shared conventions: `../_shared/conventions.md`.
+**Load first:** `../_shared/core.md`.
+**Load when needed:** `../_shared/references/automation-ladder.md`, `../_shared/project-notes.md`.
 
-**Input:** `--jira <KEY>`, or a feature description, or files listed under `requirements.docs`. Ask the tester if none is available.
+**Input:** `--jira <KEY>`, a feature description, or configured requirement docs. If none exists, ask for the requirement before starting.
 
-**Output:** `cases/<slug>/analysis.md`, **written in Vietnamese** (see the language policy in conventions).
+**Output:** `cases/<slug>/analysis.md`, written in Vietnamese.
 
-## Steps
+## MUST
 
-1. **Collect the requirement.** Read the `requirements` block in `e2e.config.yaml`. With `tracker: jira`, call `mcp__claude_ai_Atlassian_Rovo__getJiraIssue` (load the schema first via `ToolSearch("select:mcp__claude_ai_Atlassian_Rovo__getJiraIssue")` if it is deferred) and take the summary, description, acceptance criteria, comments and sub-tasks. With `tracker: none`, read `requirements.docs`.
+1. **Collect the requirement.** Read the configured `requirements` block. With Jira, fetch summary, description, acceptance criteria, comments and sub-tasks through the configured Jira MCP tool. With `tracker: none`, read `requirements.docs`.
+2. **Create the AC baseline.** Produce `AC-1`, `AC-2`, … as concrete pass/fail statements. Derive missing criteria from the requirement and source code, including meaningful branches, enum values and states. No later stage may silently invent a different AC baseline.
+3. **Trace every AC.** Map it to the real endpoint, source branch, component or selector. Inspect `requirements.diffRepos` and the relevant feature branch; skip a repo only when its feature branch does not exist.
+4. **Map state reachability.** For each required entity, setting/mode and identity, find the full chain that reaches the state. Inspect routers/controllers, OpenAPI/GraphQL and the app's own API calls. Follow chains to the terminal state; a draft-producing endpoint is not enough when a complete/approve/activate step exists.
+5. **Record the state table:** required state → endpoint/UI chain → cleanup → automation rung. Reuse known chains from `project-notes.md` and append genuinely new discoveries.
+6. **Write `analysis.md`** with ACs, AC-to-code traceability, state-reachability table, material ambiguity/assumptions and preliminary risk by area.
 
-2. **Extract acceptance criteria — the primary, mandatory output.** Produce a numbered list `AC-1`, `AC-2`, … Each AC must be a **concrete, verifiable statement** with an unambiguous pass or fail; reject vague phrasing such as "works correctly". Sources: the ticket's acceptance-criteria section, its description, any scenario tables, and QA comments. When the ticket is not explicit, **derive the criteria from the requirement plus the source code**, turning every branch, enum value and state worth checking into its own AC. This list is the baseline `e2e-gen` uses to prove coverage — without it, cases will certainly be missed.
+## Ambiguity policy
 
-3. **Establish traceability.** Map each AC to the real code, endpoint or selector that implements it. Read the `feature/<KEY>` branch diff for every repository in `requirements.diffRepos` (paths resolve relative to `e2e/`). A repository without that branch is untouched by the feature — skip it.
+Ask the tester **only** when an ambiguity changes expected business behaviour and cannot be resolved from the requirement, source code or project notes.
 
-4. **Map how to reach every required state — do this before anyone judges what is automatable.** List what the tests need: entities (orders, members, accounts), **settings or modes to switch** (account type, feature toggles, payment terms) and **identities** to act as.
+For non-blocking uncertainty:
+- choose the safest evidence-backed interpretation;
+- record it as an explicit assumption in `analysis.md`;
+- continue without a question.
 
-   Start from `../_shared/project-notes.md`, which records what earlier tasks discovered about this app. **It is often empty — that is normal, not an error.** For anything it does not cover, find the path yourself: grep the routers and controllers for mutating endpoints (`POST`, `PUT`, `PATCH`, `DELETE`), read any OpenAPI or GraphQL schema, and look at the endpoint the app's own UI calls. **Follow each chain to the end** — a create endpoint that only yields a draft is not the answer if a complete/approve/activate endpoint exists.
+If questions are required, ask at most four per round with `AskUserQuestion`.
 
-   Record a table: required state → chain of endpoints → cleanup → rung on `../_shared/references/automation-ladder.md`. **Append newly discovered chains to `project-notes.md`** so the next task starts from a richer map. This table is what stops `e2e-gen` from writing off cases as "needs manual preparation" when the system could reach the state itself.
+## Completion check
 
-5. **Hunt for ambiguity and contradictions.** Look for missing bounds, undefined error or timeout behaviour, unstated alternate flows, and unclear business rules. List them as `Q1`, `Q2`, …
+Before finishing, verify:
+- ACs are numbered and concrete;
+- every AC has traceability;
+- every required state has a reachability decision;
+- unresolved business contradictions are either answered or explicitly blocked;
+- `analysis.md` exists.
 
-6. **Confirm with the tester** via `AskUserQuestion` (at most four questions per round) for anything that changes the tests. Where a point cannot be settled, record it explicitly as a stated assumption.
-
-7. **Write `analysis.md`** containing: the numbered AC list, the AC-to-code traceability, the **data-creation table from step 4**, the questions with their answers or assumptions, and a preliminary risk rating (High / Medium / Low) per area.
-
-Finish by suggesting `/e2e gen --jira <KEY>`, which will read `analysis.md`.
+Suggest `/e2e gen --jira <KEY>` after completion.

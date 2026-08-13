@@ -1,11 +1,11 @@
 ---
-description: Full-lifecycle E2E QA — invoke a single stage skill (analyze, recon, gen, data, run, flaky, report) or save a login session. For the whole chain, use /e2e-full.
+description: Full-lifecycle E2E QA — invoke one stage skill (analyze, recon, gen, data, run, flaky, report) or save a login session. For the whole chain, use /e2e-full.
 argument-hint: "analyze|recon|gen|data|run|flaky|report <slug|--jira KEY> | login [target]"
 ---
 
-The user invoked `/e2e $ARGUMENTS`. This command is a dispatcher: it runs **one stage skill** based on the first subcommand. Load the matching skill with the Skill tool, pass the remaining arguments to it, and follow its instructions.
+The user invoked `/e2e $ARGUMENTS`. This command is a **dispatcher**: load exactly one matching stage skill and pass the remaining arguments to it.
 
-| Subcommand | Skill to load |
+| Subcommand | Skill |
 |---|---|
 | `analyze [feature] [--jira KEY]` | `e2e-analyze` |
 | `recon <slug>` | `e2e-recon` |
@@ -15,15 +15,12 @@ The user invoked `/e2e $ARGUMENTS`. This command is a dispatcher: it runs **one 
 | `flaky <slug> [fix]` | `e2e-flaky` |
 | `report <slug>` | `e2e-report` |
 
-**`login [target=cms]`** has no skill — run it directly in the background: `cd e2e && pnpm e2e:login <target>`.
+Load `.claude/skills/_shared/core.md` before dispatching. A stage must load only the references declared by that skill.
 
-- For a `chrome-profile` target such as `cms`: real Chrome opens with the dedicated profile at `loginUrl`. The tester signs in to Shopify (email, password and the 2FA code), opens the app, then **closes the window** — the session is saved into the profile, with no keypress required.
-- For a `storage-state` target: the tester signs in, then presses ENTER to save `.auth/*.json`.
+**`login [target=cms]`** has no skill — run `cd e2e && pnpm e2e:login <target>` directly and watch the background output until the saved-session message appears. For `chrome-profile`, close the real Chrome window after signing in; for `storage-state`, press ENTER to save `.auth/*.json`.
 
-Watch the background output until the saved-session message appears. Sessions expire over time, so re-run this when a test is redirected to a login page.
+Sessions expire. Re-run login when a test is redirected to a login page.
 
-To run **the entire chain through to the final report**, use `/e2e-full <feature | --jira KEY>`.
+For the entire chain through the final report, use `/e2e-full <feature | --jira KEY>`.
 
-With no subcommand, ask the tester which stage to run, or whether to run `/e2e-full`.
-
-Reminder: instruction files are in English, but every generated artifact and tester-facing summary is written in Vietnamese — see `.claude/skills/_shared/conventions.md`.
+With no subcommand, ask which stage to run or whether to start `/e2e-full`.
