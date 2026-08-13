@@ -11,6 +11,7 @@
     "e2e:probe": "tsx src/probe.ts",
     "e2e:run": "tsx src/run.ts",
     "e2e:coverage:validate": "tsx src/coverage-validator.ts",
+    "e2e:report:build": "tsx src/build-report.ts",
     "e2e:browser": "playwright test",
     "e2e:login": "tsx src/login.ts"
   },

@@ -10,7 +10,7 @@ description: Triage failing or intermittent cases, distinguish feature defects f
 **Load first:** `../_shared/core.md`.
 **Load when needed:** `../_shared/references/flaky-taxonomy.md`, `../_shared/references/quality-gate.md`.
 
-**Input:** `<slug>` with `reports/<slug>/report.json` present.
+**Input:** `<slug>` with `reports/<slug>/data/report.json` present.
 
 **Mode:**
 - standalone `/e2e flaky <slug>` → analyze only;
@@ -38,9 +38,9 @@ Never rerun the whole suite merely because one case failed.
 
 ## Evidence
 
-Preserve retry evidence under `reports/<slug>/retry/`; never overwrite the canonical `report.json`. Keep exact case IDs, retry counts, evidence paths and the reason for any scope expansion.
+Preserve retry evidence under `reports/<slug>/data/retry/`; never overwrite the canonical `report.json`. Keep exact case IDs, retry counts, evidence paths and the reason for any scope expansion.
 
-Update the failure analysis in `report.md` with category, evidence and recommended action. Do not rewrite the final consolidated report beyond the classification needed by the next stage.
+Update the failure analysis in `reports/<slug>/data/analysis.md` with category, evidence and recommended action — do not touch `report.html` directly, `e2e-report` rebuilds it from this file. Do not rewrite the final consolidated report beyond the classification needed by the next stage.
 
 ## Completion check
 

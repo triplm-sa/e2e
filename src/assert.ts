@@ -9,12 +9,19 @@ export function getPath(obj: unknown, path: string): unknown {
 
 export interface ExpectSpec { status?: number; bodyMatch?: Record<string, unknown> }
 
-export function evalExpect(spec: ExpectSpec, status: number, body: unknown): { passed: boolean; detail: string } {
+export function evalExpect(spec: ExpectSpec, status: number, body: unknown): { passed: boolean; detail: string; actual: string } {
   const problems: string[] = [];
+  const matched: string[] = [];
   if (spec.status !== undefined && spec.status !== status) problems.push(`status: expected ${spec.status}, got ${status}`);
   for (const [path, want] of Object.entries(spec.bodyMatch ?? {})) {
     const got = getPath(body, path);
     if (!isDeepStrictEqual(got, want)) problems.push(`body.${path}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`);
+    matched.push(`${path}=${JSON.stringify(got)}`);
   }
-  return problems.length ? { passed: false, detail: problems.join("; ") } : { passed: true, detail: `status ${status} + ${Object.keys(spec.bodyMatch ?? {}).length} bodyMatch ok` };
+  // Captured regardless of pass/fail — this is what report.html shows as the case's actual output,
+  // not just "N bodyMatch ok". A short verdict for `detail`; the real values for `actual`.
+  const actual = [`status=${status}`, ...matched].join(", ");
+  return problems.length
+    ? { passed: false, detail: problems.join("; "), actual }
+    : { passed: true, detail: `status ${status} + ${Object.keys(spec.bodyMatch ?? {}).length} bodyMatch ok`, actual };
 }

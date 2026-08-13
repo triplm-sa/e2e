@@ -2,8 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
-import { renderCsv, renderReport } from "./report.js";
-import { mergeExecutionReports, parsePlaywrightReport, writeJson, type ExecutionReport } from "./execution-report.js";
+import { renderCsv, renderReport, renderHtmlReport, mergeExecutionReports, parsePlaywrightReport, writeJson, type ExecutionReport } from "./report.js";
 import type { CaseFile } from "./types.js";
 
 const slugs = process.argv.slice(2);
@@ -46,9 +45,13 @@ for (const slug of slugs) {
   const root = process.cwd();
   const yamlPath = resolve(root, `cases/${slug}/cases.yaml`);
   const spec = resolve(root, `cases/${slug}/browser/${slug}.spec.ts`);
+  // reports/<slug>/ holds only what a human opens: report.html. Every machine-generated artifact
+  // (raw JSON, csv export, playwright's own html reporter, traces) lives under data/ so the folder
+  // a tester browses to isn't cluttered with files meant for tooling.
   const outdir = resolve(root, `reports/${slug}`);
-  const apiReportPath = resolve(outdir, "api-report.json");
-  const browserReportPath = resolve(outdir, "browser-report.json");
+  const dataDir = resolve(outdir, "data");
+  const apiReportPath = resolve(dataDir, "api-report.json");
+  const browserReportPath = resolve(dataDir, "browser-report.json");
   const hasApi = existsSync(yamlPath);
   const hasBrowser = existsSync(spec);
 
@@ -57,7 +60,7 @@ for (const slug of slugs) {
     anyFail = true;
     continue;
   }
-  mkdirSync(outdir, { recursive: true });
+  mkdirSync(dataDir, { recursive: true });
 
   if (hasApi) {
     console.log(`\n--- ${slug}: API ---`);
@@ -65,8 +68,8 @@ for (const slug of slugs) {
   }
   if (hasBrowser) {
     console.log(`\n--- ${slug}: browser ---`);
-    if (!run("npx", ["playwright", "test", spec], { E2E_OUTDIR: outdir })) anyFail = true;
-    const playwrightJson = resolve(outdir, "report.json");
+    if (!run("npx", ["playwright", "test", spec], { E2E_OUTDIR: dataDir })) anyFail = true;
+    const playwrightJson = resolve(dataDir, "report.json");
     if (existsSync(playwrightJson)) writeFileSync(browserReportPath, readFileSync(playwrightJson));
     else { console.error(`❌ ${slug}: browser run completed without ${playwrightJson}`); anyFail = true; }
   }
@@ -82,13 +85,20 @@ for (const slug of slugs) {
   }
   const browserResults = existsSync(browserReportPath) ? parsePlaywrightReport(browserReportPath, slug) : [];
   const merged = mergeExecutionReports(feature, apiResults, browserResults);
-  writeJson(resolve(outdir, "report.json"), merged);
-  writeFileSync(resolve(outdir, "report.generated.md"), renderReport(feature, merged.results));
+  writeJson(resolve(dataDir, "report.json"), merged);
+  writeFileSync(resolve(dataDir, "report.generated.md"), renderReport(feature, merged.results));
+  // report.csv is the one machine artifact meant to leave the repo (import into Sheets/Jira/TestRail),
+  // so it sits next to report.html instead of buried in data/ with the internal-only files.
   writeFileSync(resolve(outdir, "report.csv"), renderCsv(merged.results));
 
-  const humanReport = resolve(outdir, "report.md");
-  if (!existsSync(humanReport)) writeFileSync(humanReport, renderReport(feature, merged.results));
-  console.log(`>>> ${slug}: canonical report → ${outdir}/report.json`);
+  // Seed report.html so a run always leaves something viewable; `/e2e report` overwrites it once the
+  // bug analysis in data/analysis.md exists. Never clobber an analysis.md a tester already wrote.
+  const analysisPath = resolve(dataDir, "analysis.md");
+  if (!existsSync(analysisPath)) {
+    writeFileSync(analysisPath, "## Bug\n\n> Claude điền mục này. Mỗi bug một khối; không có bug thì ghi \"Không phát hiện bug\".\n");
+  }
+  writeFileSync(resolve(outdir, "report.html"), renderHtmlReport(merged, readFileSync(analysisPath, "utf8")));
+  console.log(`>>> ${slug}: canonical data → ${dataDir}/report.json · report → ${outdir}/report.html`);
 }
 
 process.exit(anyFail ? 1 : 0);

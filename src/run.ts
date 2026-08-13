@@ -3,7 +3,7 @@ import { resolve, dirname, basename } from "node:path";
 import { parse } from "yaml";
 import { loadConfig, resolveTarget } from "./config.js";
 import { runApiStep } from "./api-runner.js";
-import { buildExecutionReport, writeJson } from "./execution-report.js";
+import { buildExecutionReport, writeJson } from "./report.js";
 import { isApiStep, phaseOf } from "./types.js";
 import { validateCaseFile } from "./validation.js";
 import type { CaseFile, Step, StepResult } from "./types.js";
@@ -64,7 +64,7 @@ for (const item of teardown) {
 }
 
 const slug = basename(dirname(casePath));
-const reportDir = resolve(cwd, "reports", slug);
+const reportDir = resolve(cwd, "reports", slug, "data");
 mkdirSync(reportDir, { recursive: true });
 const report = buildExecutionReport(cf.feature, results);
 writeJson(resolve(reportDir, "api-report.json"), report);

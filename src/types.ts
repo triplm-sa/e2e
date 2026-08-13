@@ -40,7 +40,15 @@ export interface CaseFile { id: string; feature: string; targets: string[]; step
 export interface StepResult {
   caseId: string; case?: string; index: number; target: string; kind: "api" | "browser";
   phase?: StepPhase; risk?: Risk; action: string; passed: boolean; skipped?: boolean;
-  failureType?: FailureType; detail: string; consoleErrors?: string[]; screenshot?: string;
+  failureType?: FailureType; detail: string; consoleErrors?: string[];
+  /** A `data:image/...;base64,...` URI, ready to embed directly in the self-contained HTML report. */
+  screenshot?: string;
+  /**
+   * What went in / what came back, so the case table shows concrete data instead of "status 200 +
+   * 3 bodyMatch ok". API steps fill these automatically (request body → actual matched field
+   * values); browser steps get them only if the spec calls `recordIO()` (see browser-fixture.ts).
+   */
+  input?: string; output?: string;
 }
 
 export function isApiStep(s: Step): s is ApiStep { return (s as ApiStep).request !== undefined }

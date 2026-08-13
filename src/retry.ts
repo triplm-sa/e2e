@@ -8,8 +8,9 @@ if (!slug) { console.error("Usage: pnpm e2e:retry <slug> [grep]"); process.exit(
 const spec = `cases/${slug}/browser/${slug}.spec.ts`;
 if (!existsSync(resolve(process.cwd(), spec))) { console.error(`No spec at ${spec}`); process.exit(1); }
 
-// Retry output must never replace the canonical merged report.json. It is evidence for the repair loop.
-const outdir = `reports/${slug}/retry`;
+// Retry output must never replace the canonical merged report.json. It is evidence for the repair
+// loop, so it lives under data/ with the rest of the machine-only artifacts, not next to report.html.
+const outdir = `reports/${slug}/data/retry`;
 const args = ["playwright", "test", spec, ...(grep ? ["-g", grep] : ["--last-failed"])];
 console.log(`▸ ${grep ? `only tests matching \"${grep}\"` : "only last run's failures"}\n`);
 

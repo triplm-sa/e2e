@@ -22,4 +22,11 @@ describe("evalExpect", () => {
     const r = evalExpect({ bodyMatch: { "rule.name": "VN" } }, 200, { rule: { name: "US" } });
     expect(r.passed).toBe(false);
   });
+
+  it("reports the actual matched values regardless of pass/fail, not just a verdict", () => {
+    const pass = evalExpect({ status: 200, bodyMatch: { "rule.name": "VN" } }, 200, { rule: { name: "VN" } });
+    expect(pass.actual).toBe('status=200, rule.name="VN"');
+    const fail = evalExpect({ bodyMatch: { "rule.name": "VN" } }, 200, { rule: { name: "US" } });
+    expect(fail.actual).toBe('status=200, rule.name="US"');
+  });
 });

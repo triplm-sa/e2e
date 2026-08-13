@@ -25,6 +25,11 @@ export function joinUrl(baseUrl: string, path: string): string {
   return new URL(path.replace(/^\/+/, ""), base).toString();
 }
 
+/** Keeps input/output readable in a table cell — full payloads belong in trace evidence, not here. */
+function truncate(s: string, max = 300): string {
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
 export async function runApiStep(step: ApiStep, target: Target, configDir: string, caseId: string, index: number, vars: Record<string, unknown> = {}): Promise<{ result: StepResult; captured: Record<string, unknown> }> {
   const path = interpolate(step.request.path, vars) as string;
   const base = { caseId, case: step.case, index, target: step.target, kind: "api" as const, action: step.action ?? `${step.request.method} ${path}` };
@@ -42,14 +47,18 @@ export async function runApiStep(step: ApiStep, target: Target, configDir: strin
       const v = getPath(parsed, bodyPath);
       if (v === undefined) missing.push(`${name}←${bodyPath}`); else captured[name] = v;
     }
-    const { passed, detail } = evalExpect(step.expect, res.status, parsed);
+    const { passed, detail, actual } = evalExpect(step.expect, res.status, parsed);
     const captureNote = missing.length ? `; missing capture: ${missing.join(", ")}` : "";
-    return { result: { ...base, passed: passed && missing.length === 0, failureType: passed && missing.length === 0 ? undefined : "assertion", detail: detail + captureNote }, captured };
+    const input = `${step.request.method} ${path}${body !== undefined ? ` ${truncate(JSON.stringify(body))}` : ""}`;
+    return {
+      result: { ...base, passed: passed && missing.length === 0, failureType: passed && missing.length === 0 ? undefined : "assertion", detail: detail + captureNote, input, output: truncate(actual) },
+      captured,
+    };
   } catch (err) {
     const e = err as Error;
     const detail = e.name === "TimeoutError" || e.name === "AbortError"
       ? `timeout sau ${API_TIMEOUT_MS / 1000}s — ${step.request.method} ${path} không phản hồi. Kiểm tra API còn sống hoặc tăng E2E_API_TIMEOUT.`
       : `request error: ${e.message}`;
-    return { result: { ...base, passed: false, failureType: "environment", detail }, captured: {} };
+    return { result: { ...base, passed: false, failureType: "environment", detail, input: `${step.request.method} ${path}` }, captured: {} };
   }
 }

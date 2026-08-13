@@ -16,6 +16,7 @@ This file is the small, always-relevant contract. **Do not load every reference 
 - Console errors are evidence to inspect, not automatic failures; Shopify/storefront noise is common.
 - Never diagnose an environment failure from a log line alone. Verify directly with `curl`, `pnpm e2e:doctor`, or visual evidence and quote the check.
 - Targets are declared in `e2e.config.yaml` (`api` or `browser`); never hard-code a fixed target list.
+- The case table in `report.html` shows real input/output, not a generic "status 200 + N bodyMatch ok". API steps get this automatically. For a browser case where the concrete data matters to the reader (not obvious from the scenario text), call `recordIO(testInfo, input, output)` from `browser-fixture.ts` with what was actually set up and observed — e.g. `recordIO(testInfo, "member id=42, role=Default", "role badge = 'Default'")`.
 
 ## Embedded Shopify Admin apps
 
@@ -52,7 +53,7 @@ Store/app handle and target-specific details come from `.env`, `e2e.config.yaml`
 
 Input — `cases/<slug>/`: `analysis.md`, `recon.md`, `plan.md`, `coverage.md`, `coverage.json`, `data.md`, `cases.yaml`, `browser/<slug>.spec.ts`, `task.md`.
 
-Output — `reports/<slug>/`: `report.md`, `report.csv`, `report.json`, `html/index.html`, `artifacts/`, `retry/`.
+Output — `reports/<slug>/`: **`report.html`** is the only file a human opens — one self-contained page (case table, bug analysis, embedded screenshots for failed cases; no external file, image or stylesheet). **`report.csv`** sits next to it — the one artifact meant to leave the repo (import into Sheets/Jira/TestRail). Everything else machine-generated lives under `reports/<slug>/data/`: `report.json` (execution truth), `report.generated.md`, `api-report.json`, `browser-report.json`, `analysis.md` (tester-authored bug/coverage prose, source for `report.html`), Playwright's own `html/index.html` (interactive trace viewer), `artifacts/`, `retry/`. Build/rebuild the final page with `pnpm e2e:report:build <slug>` after editing `data/analysis.md`.
 
 ## Prerequisites
 

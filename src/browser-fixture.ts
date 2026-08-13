@@ -1,4 +1,4 @@
-import { test as base, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
+import { test as base, expect, chromium, type BrowserContext, type Page, type TestInfo } from "@playwright/test";
 import { resolve } from "node:path";
 import { loadConfig } from "./config.js";
 import { persistentOpts } from "./chrome-opts.js";
@@ -90,6 +90,17 @@ export const test = base.extend<Fixtures>({
     }
   },
 });
+
+/**
+ * Optional per-case call so report.html shows concrete data instead of just "Playwright passed in
+ * Nms". API steps get this automatically (see api-runner.ts); browser steps don't have a generic
+ * request/response to read it from, so a spec calls this explicitly with whatever it set up and
+ * observed, e.g. `recordIO(testInfo, "member id=42, role=Default", "role badge = 'Default'")`.
+ */
+export async function recordIO(testInfo: TestInfo, input: string, output: string): Promise<void> {
+  await testInfo.attach("input", { body: input, contentType: "text/plain" });
+  await testInfo.attach("output", { body: output, contentType: "text/plain" });
+}
 
 export { expect };
 export type { Page, FrameLocator, Locator, BrowserContext } from "@playwright/test";
