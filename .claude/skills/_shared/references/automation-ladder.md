@@ -61,7 +61,7 @@ Naming the routers you inspected is part of the justification. "Needs preparatio
   case: SETUP-01
   phase: setup
   action: <reach the required state>
-  request: { method: POST, path: /<endpoint>, body: { ... } }
+  request: { method: POST, path: /<endpoint>, body: { amount: 1500 } }   # amount is ours — known, not observed
   expect: { status: 200 }
   capture: { entityId: data.id }
 
@@ -74,6 +74,8 @@ Naming the routers you inspected is part of the justification. "Needs preparatio
 - target: api
   case: TD-13
   request: { method: GET, path: "/<endpoint>/${entityId}" }
+  # `1500` is `derived`, not `anchor` — it's the exact amount SETUP-01 created, not a number
+  # copied from what this GET happened to return. See test-oracle.md.
   expect: { status: 200, bodyMatch: { "data.total": 1500 } }
 
 - target: api
@@ -89,6 +91,10 @@ Phase semantics: `setup` runs first and a failure there aborts the tests, which 
 
 Switching a shop-wide mode affects every other test running against that environment. Handle it deliberately: capture the original value in setup, restore it in teardown, and group the cases that need that mode together so the switch happens once rather than per case.
 
+This is the "own the full lifecycle" pattern in `test-oracle.md` — a hard-coded expected value is safe here specifically because teardown restores the shared state you mutated. Skipping the restore doesn't just leave a stray setting; it invalidates every hard-coded expectation in cases that read that setting afterward.
+
 ## Records that cannot be deleted
 
 Some records — orders being the usual example — cannot be removed once created. Prefer **seeding once and asserting read-only** over creating a new record on every run, and state that choice in the plan. Where repeated creation is unavoidable, note the accumulation so the team can use a dedicated environment.
+
+Because you don't own these records' lifecycle, never hard-code an expected value captured from them at recon time — see `test-oracle.md`'s "live baseline" pattern. Read the current state at run time instead of a frozen snapshot; real orders accumulate and change regardless of your test.

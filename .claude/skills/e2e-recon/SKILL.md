@@ -1,11 +1,15 @@
 ---
 name: e2e-recon
-description: Inspect the live UI before generating a spec — walk the real flow and harvest verified selectors and real data. Triggered by /e2e recon.
+description: Inspect the live UI before generating a spec — walk the real flow and harvest confirmed selectors and observed data. Triggered by /e2e recon.
 ---
 
 # e2e-recon
 
-**Role:** replace selector/data guesses with verified observations from the real browser. Do not design coverage here.
+**Role:** replace selector/data *guesses* with real observations from the browser. Do not design coverage here.
+
+**"Verified" here means only "confirmed to exist and be reachable"** — a selector that matches, a value that's really on screen. It does **not** mean the value is mathematically/business-correct. A displayed total, percentage or computed date is exactly as likely to be wrong here as anywhere else; this stage has no way to tell.
+
+**This stage supplies selectors and raw setup facts — never a computed expected value.** A plain identity fact (an id, a name, a status label that's just present) observed here is fine to hand to `e2e-data` as setup context. A computed/aggregate figure (a total, a percentage, a formula result) is recorded only to confirm the *selector* that will read it exists — its formula must come from `analysis.md`'s AC-to-code trace (see `e2e-analyze`), and the concrete number for a given run comes from `test-oracle.md`'s derivation rules, not from this stage. Never let a number captured here travel into `cases.yaml`/spec as an expected value on its own authority.
 
 **Load first:** `../_shared/core.md`.
 **Load when needed:** `../_shared/references/quality-gate.md`, `../_shared/project-notes.md`.
@@ -30,6 +34,8 @@ description: Inspect the live UI before generating a spec — walk the real flow
 Write `recon.md` as:
 
 `| Case | Element / meaning | Proposed selector | Real data | Notes |`
+
+`Real data` is what was observed on screen at this moment — not a claim that the value is correct, and not a candidate expected value. Flag in `Notes` when an entry is a computed/aggregate figure (a total, a percentage, a count) rather than a raw identity fact — `e2e-gen` must source that field's expected value from `analysis.md`'s formula ledger instead, never by copying this column.
 
 Also record:
 - route/structure discoveries that contradict assumptions;

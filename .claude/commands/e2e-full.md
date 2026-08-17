@@ -42,14 +42,14 @@ The profile controls depth and optional work; it never permits an uncovered AC o
 
 | State | Required input | Required output | Completion condition |
 |---|---|---|---|
-| `ANALYZED` | feature/Jira requirement | `analysis.md` | numbered ACs + traceability + state-reachability table |
+| `ANALYZED` | feature/Jira requirement | `analysis.md` | numbered ACs + traceability + formula ledger for computed ACs + state-reachability table |
 | `RECONSTRUCTED` | `analysis.md` | `recon.md` | required UI selectors/data verified, unless API-only |
 | `PLANNED` | `analysis.md` + `recon.md` when applicable | `plan.md`, `coverage.md`, `coverage.json` | every AC covered; required dimensions/branches explained; deterministic validator passes |
 | `APPROVED` | human-readable plan | approval decision | tester approves full or partial scope |
-| `DATA_READY` | approved plan | `data.md`, populated yaml/spec | every required value has a concrete source |
-| `EXECUTED` | cases + spec | `report.json`, merged run report | API/browser layers completed or explicitly not applicable |
+| `DATA_READY` | approved plan | `data.md`, populated yaml/spec | every required value has a concrete source; no `[UNVERIFIED]` marker remains |
+| `EXECUTED` | cases + spec | `data/report.json`, merged run report | API/browser layers completed or explicitly not applicable |
 | `STABLE` | execution failures | updated failure analysis | flaky candidates pass twice consecutively, or five healing rounds exhausted |
-| `REPORTED` | latest execution + classification | consolidated `report.md`, `report.csv` | final report and HTML link are available |
+| `REPORTED` | latest execution + classification | `report.html`, `report.csv` | final self-contained report and CSV export are available |
 
 ## Stage transitions
 
@@ -75,9 +75,9 @@ Create `cases/<slug>/task.md` with this shape and update it after each verified 
 - [ ] PLANNED — plan.md + coverage.md + coverage.json
 - [ ] APPROVED — scope: pending
 - [ ] DATA_READY — data.md + populated cases/spec
-- [ ] EXECUTED — report.json
+- [ ] EXECUTED — data/report.json
 - [ ] STABLE — flaky stage complete
-- [ ] REPORTED — report.md + report.csv
+- [ ] REPORTED — report.html + report.csv
 ```
 
 A checkbox may be marked complete only after the named artifact exists and the stage's completion condition is satisfied. If a stage fails, leave it unchecked and record the one-line reason.
@@ -91,4 +91,4 @@ A checkbox may be marked complete only after the named artifact exists and the s
 
 ## Finish
 
-Mark every applicable stage complete in `task.md`. Give the tester a concise Vietnamese summary: pass/fail/not-verified totals, new versus re-verified bugs, risk distribution, items needing developer versus spec review, coverage profile, and the link to `reports/<slug>/html/index.html`.
+Mark every applicable stage complete in `task.md`. Give the tester a concise Vietnamese summary: pass/fail/not-verified totals, new versus re-verified bugs, risk distribution, items needing developer versus spec review, coverage profile, and the link to `reports/<slug>/report.html` (the self-contained final report; Playwright's own interactive trace viewer is at `reports/<slug>/data/html/index.html` for deeper debugging).

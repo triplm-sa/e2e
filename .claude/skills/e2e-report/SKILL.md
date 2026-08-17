@@ -25,7 +25,7 @@ description: Consolidate the latest run and flaky classification into the final 
    - Bằng chứng — the case ID is enough; its screenshot (if any) is embedded automatically next to that row in the generated table, do not paste image paths into the analysis;
    - Nghi ngờ nguyên nhân — `file:line` only when evidence supports it;
    - Trạng thái — new / fixed and verified / still reproducing.
-4. Do not report `[NEEDS-SELECTOR-REVIEW]`, flaky, or setup failures as feature bugs. Environment claims require direct verification evidence.
+4. Do not report `[NEEDS-SELECTOR-REVIEW]`, flaky, `Stale expectation` (see `flaky-taxonomy.md`), or setup failures as feature bugs. Environment claims require direct verification evidence.
 5. Run `pnpm e2e:report:build <slug>`. It reads `data/report.json` + `data/analysis.md` and writes `reports/<slug>/report.html` — the case table, skip list and console-errors section are generated mechanically from `report.json`; you never retype or hand-build them. Re-run the build any time `analysis.md` changes; never hand-edit `report.html`.
 6. Fill the CSV `Type` classification in `reports/<slug>/report.csv` only when the engine leaves it blank and the team needs it; do not reformat other generated columns.
 7. Summarise in chat: new vs re-verified bug count, pass/fail/not-verified totals, and developer-vs-spec actions.
