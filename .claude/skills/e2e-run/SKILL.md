@@ -22,7 +22,6 @@ description: Execute the approved API and browser tests, collect evidence and cl
 5. Classify failures provisionally:
    - `[NEEDS-SELECTOR-REVIEW]` → spec/environment;
    - business assertion failure → candidate feature defect;
-   - a value that is plausible but differs from a stored literal, with no code change → candidate `Stale expectation` (see `flaky-taxonomy.md`), not a defect;
    - intermittent → flaky candidate;
    - setup failure → dependent tests are SKIPPED/not verified, not feature failures.
 6. Never claim an environment outage from console output alone. Verify it directly and quote the check.

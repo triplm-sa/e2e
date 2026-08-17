@@ -12,11 +12,11 @@ This file is the small, always-relevant contract. **Do not load every reference 
 
 ## Testing rules
 
-- Every case needs a concrete business assertion. "Page loaded" is not a pass criterion. For the deeper rules on what makes an assertion able to actually catch a bug (`toBeVisible()` pitfalls, `derived` vs `anchor` expected values, data that goes stale), load `references/test-oracle.md` — required reading in `e2e-gen`, `e2e-data` and `e2e-flaky`, whenever writing, sourcing, or judging a value-assertion.
+- Every case needs a concrete business assertion. "Page loaded" is not a pass criterion.
 - Console errors are evidence to inspect, not automatic failures; Shopify/storefront noise is common.
 - Never diagnose an environment failure from a log line alone. Verify directly with `curl`, `pnpm e2e:doctor`, or visual evidence and quote the check.
 - Targets are declared in `e2e.config.yaml` (`api` or `browser`); never hard-code a fixed target list.
-- The case table in `report.html` shows real input/output, not a generic "status 200 + N bodyMatch ok". API steps get this automatically. For a browser case where the concrete data matters to the reader (not obvious from the scenario text), call `recordIO(testInfo, input, output)` from `browser-fixture.ts` with what was actually set up and observed — e.g. `recordIO(testInfo, "record id=42, field=X", "displayed badge = 'X'")`.
+- The case table in `report.html` shows real input/output, not a generic "status 200 + N bodyMatch ok". API steps get this automatically. For a browser case where the concrete data matters to the reader (not obvious from the scenario text), call `recordIO(testInfo, input, output)` from `browser-fixture.ts` with what was actually set up and observed — e.g. `recordIO(testInfo, "member id=42, role=Default", "role badge = 'Default'")`.
 
 ## Embedded Shopify Admin apps
 
